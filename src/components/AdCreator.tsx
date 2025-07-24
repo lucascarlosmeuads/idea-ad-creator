@@ -1,15 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Loader2, Download, Wand2, Key, FileText, Brain, Zap, ImageIcon } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, Download, Wand2, FileText, Brain, Zap, ImageIcon, Settings, Mic } from "lucide-react";
 import { toast } from "sonner";
 import heroImage from "@/assets/idea-mining-hero.jpg";
 import { OpenAIService, type BusinessAnalysis, type AdPromptElements, type MultipleAdOptions } from "@/services/openai";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { ImageProviderFactory, type UnifiedImageParams } from "@/services/imageProviderFactory";
+import { ApiConfigManager } from "@/services/apiConfig";
+import ApiConfigPanel from "./ApiConfigPanel";
+import AudioRecorderPanel from "./AudioRecorderPanel";
 
 interface GeneratedImageData {
   id: string;
@@ -111,7 +116,6 @@ export default function AdCreator() {
   const [bottomText, setBottomText] = useState("Transforme insights em oportunidades de ouro. Nossa plataforma usa IA avançada para extrair ideias lucrativas do mercado digital. Pare de procurar - comece a encontrar!");
   const [customImageUrl, setCustomImageUrl] = useState("");
   const [imagePrompt, setImagePrompt] = useState("");
-  const [apiKey, setApiKey] = useState("");
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [generatedImageUrl, setGeneratedImageUrl] = useState("");
   const [textPosition, setTextPosition] = useState("center");
@@ -134,6 +138,12 @@ export default function AdCreator() {
   // Image gallery state
   const [generatedImages, setGeneratedImages] = useState<GeneratedImageData[]>([]);
   const [activeImageId, setActiveImageId] = useState<string | null>(null);
+  
+  // Input mode state (text vs audio)
+  const [inputMode, setInputMode] = useState<'text' | 'audio'>('text');
+  
+  // API configuration
+  const apiManager = ApiConfigManager.getInstance();
 
   const analyzeDocument = async () => {
     if (!documentText.trim()) {
@@ -141,14 +151,15 @@ export default function AdCreator() {
       return;
     }
 
-    if (!apiKey.trim()) {
-      toast.error("Por favor, insira sua chave da API OpenAI");
+    const openaiKey = apiManager.getApiKey('openai');
+    if (!openaiKey) {
+      toast.error("Por favor, configure sua chave da API OpenAI");
       return;
     }
 
     setIsAnalyzing(true);
     try {
-      const openaiService = new OpenAIService(apiKey);
+      const openaiService = new OpenAIService(openaiKey);
       const analysis = await openaiService.analyzeBusinessDocument(documentText);
       setBusinessAnalysis(analysis);
       setShowAnalysis(true);
@@ -167,14 +178,15 @@ export default function AdCreator() {
       return;
     }
 
-    if (!apiKey.trim()) {
-      toast.error("Por favor, insira sua chave da API OpenAI");
+    const openaiKey = apiManager.getApiKey('openai');
+    if (!openaiKey) {
+      toast.error("Por favor, configure sua chave da API OpenAI");
       return;
     }
 
     setIsGeneratingImage(true);
     try {
-      const openaiService = new OpenAIService(apiKey);
+      const openaiService = new OpenAIService(openaiKey);
       
       // Generate the ad prompt elements
       const promptElements = await openaiService.generateAdPrompt(businessAnalysis);
@@ -186,8 +198,8 @@ export default function AdCreator() {
       setImagePrompt(promptElements.imageDescription);
       setIncludeTextInImage(true);
       
-      // Generate the image with the complete prompt
-      const imageResult = await openaiService.generateImage({
+      // Generate the image using the factory
+      const imageParams: UnifiedImageParams = {
         prompt: promptElements.completePrompt,
         mainText: promptElements.topPhrase,
         subText: promptElements.bottomCTA,
@@ -195,8 +207,9 @@ export default function AdCreator() {
         size: "1024x1024",
         quality: "hd",
         style: "vivid"
-      });
+      };
       
+      const imageResult = await ImageProviderFactory.generateImage(imageParams);
       setGeneratedImageUrl(imageResult.url);
       toast.success("Anúncio completo gerado com sucesso!");
     } catch (error) {
@@ -213,15 +226,9 @@ export default function AdCreator() {
       return;
     }
 
-    if (!apiKey.trim()) {
-      toast.error("Digite sua chave da API do OpenAI");
-      return;
-    }
-
     setIsGeneratingImage(true);
     try {
-      const openaiService = new OpenAIService(apiKey);
-      const result = await openaiService.generateImage({
+      const imageParams: UnifiedImageParams = {
         prompt: imagePrompt,
         size: "1024x1024",
         quality: "hd",
@@ -229,13 +236,14 @@ export default function AdCreator() {
         textPosition: textPosition as any,
         mainText: includeTextInImage ? topText : undefined,
         subText: includeTextInImage ? (bottomText.length > 100 ? bottomText.slice(0, 100) + "..." : bottomText) : undefined,
-      });
+      };
       
+      const result = await ImageProviderFactory.generateImage(imageParams);
       setGeneratedImageUrl(result.url);
       toast.success("Imagem gerada com sucesso!");
     } catch (error) {
       console.error("Erro ao gerar imagem:", error);
-      toast.error("Erro ao gerar imagem. Verifique sua chave da API.");
+      toast.error("Erro ao gerar imagem. Verifique as configurações da API.");
     } finally {
       setIsGeneratingImage(false);
     }
@@ -247,14 +255,15 @@ export default function AdCreator() {
       return;
     }
 
-    if (!apiKey.trim()) {
-      toast.error("Por favor, insira sua chave da API OpenAI");
+    const openaiKey = apiManager.getApiKey('openai');
+    if (!openaiKey) {
+      toast.error("Por favor, configure sua chave da API OpenAI");
       return;
     }
 
     setIsGeneratingOptions(true);
     try {
-      const openaiService = new OpenAIService(apiKey);
+      const openaiService = new OpenAIService(openaiKey);
       const options = await openaiService.generateMultipleAdOptions(businessAnalysis);
       setMultipleOptions(options);
       toast.success("Múltiplas opções geradas com sucesso!");
@@ -272,15 +281,8 @@ export default function AdCreator() {
       return;
     }
 
-    if (!apiKey.trim()) {
-      toast.error("Por favor, insira sua chave da API OpenAI");
-      return;
-    }
-
     setIsGeneratingImage(true);
     try {
-      const openaiService = new OpenAIService(apiKey);
-      
       // Update the manual fields with selected options
       setTopText(selectedTopPhrase);
       setBottomText(selectedBottomCTA);
@@ -289,8 +291,8 @@ export default function AdCreator() {
       // Create complete prompt for Instagram format
       const completePrompt = `${selectedImageDescription}. Include the text "${selectedTopPhrase}" prominently at the top of the image in large, bold letters, and "${selectedBottomCTA}" at the bottom in smaller but clear text. Design for Instagram post format (1024x1024), optimized for Meta Ads with high visual impact and professional typography. Text must be in Portuguese and clearly legible.`;
       
-      // Generate the image
-      const imageResult = await openaiService.generateImage({
+      // Generate the image using factory
+      const imageParams: UnifiedImageParams = {
         prompt: completePrompt,
         mainText: selectedTopPhrase,
         subText: selectedBottomCTA,
@@ -298,7 +300,9 @@ export default function AdCreator() {
         size: "1024x1024",
         quality: "hd",
         style: "vivid"
-      });
+      };
+      
+      const imageResult = await ImageProviderFactory.generateImage(imageParams);
       
       // Create new image data
       const newImageData: GeneratedImageData = {
@@ -361,76 +365,75 @@ export default function AdCreator() {
           </p>
         </div>
 
-        <div className="space-y-6">
-          {/* Document Analysis Section */}
-          <Card className="bg-gradient-card border-border shadow-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                📄 Análise Inteligente de Documento
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="apiKey" className="text-foreground font-medium">
-                  Chave da API OpenAI *
-                </Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="apiKey"
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="sk-..."
-                    className="bg-background/50 border-border"
-                  />
-                  <Button 
-                    onClick={() => window.open('https://platform.openai.com/api-keys', '_blank')}
-                    size="icon"
-                    variant="outline"
-                    className="border-border"
-                  >
-                    <Key className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="documentText" className="text-foreground font-medium">
-                  Documento do Negócio
-                </Label>
-                <Textarea
-                  id="documentText"
-                  placeholder="Cole aqui o relatório, descrição do negócio, pitch, ou qualquer documento que descreva o produto/serviço, público-alvo, problemas que resolve, etc..."
-                  className="min-h-32 bg-background/50 border-border resize-none"
-                  value={documentText}
-                  onChange={(e) => setDocumentText(e.target.value)}
-                />
-              </div>
-              
-              <div className="flex gap-3">
-                <Button 
-                  onClick={analyzeDocument} 
-                  disabled={isAnalyzing || !documentText.trim() || !apiKey.trim()}
-                  className="flex-1"
-                  variant="outline"
-                >
-                  {isAnalyzing ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Analisando...
-                    </>
-                  ) : (
-                    <>
-                      <Brain className="mr-2 h-4 w-4" />
-                      🔍 Analisar Documento
-                    </>
-                  )}
-                </Button>
+        <Tabs defaultValue="analysis" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="analysis">📄 Análise</TabsTrigger>
+            <TabsTrigger value="apis">⚙️ APIs</TabsTrigger>
+            <TabsTrigger value="audio">🎤 Áudio</TabsTrigger>
+          </TabsList>
+
+          {/* Analysis Tab */}
+          <TabsContent value="analysis" className="space-y-6">
+            <Card className="bg-gradient-card border-border shadow-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  📄 Análise Inteligente de Documento
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Tabs value={inputMode} onValueChange={(value) => setInputMode(value as 'text' | 'audio')} className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="text">📝 Inserir Texto</TabsTrigger>
+                    <TabsTrigger value="audio">🎤 Gravar Áudio</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="text" className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="documentText" className="text-foreground font-medium">
+                        Documento do Negócio
+                      </Label>
+                      <Textarea
+                        id="documentText"
+                        placeholder="Cole aqui o relatório, descrição do negócio, pitch, ou qualquer documento que descreva o produto/serviço, público-alvo, problemas que resolve, etc..."
+                        className="min-h-32 bg-background/50 border-border resize-none"
+                        value={documentText}
+                        onChange={(e) => setDocumentText(e.target.value)}
+                      />
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="audio" className="space-y-4">
+                    <AudioRecorderPanel 
+                      onTranscriptionComplete={(text) => {
+                        setDocumentText(text);
+                        setInputMode('text'); // Switch back to text view after transcription
+                      }}
+                    />
+                  </TabsContent>
+                </Tabs>
                 
-                {businessAnalysis && (
-                  <>
-                    
+                <div className="flex gap-3">
+                  <Button 
+                    onClick={analyzeDocument} 
+                    disabled={isAnalyzing || !documentText.trim() || !apiManager.hasApiKey('openai')}
+                    className="flex-1"
+                    variant="outline"
+                  >
+                    {isAnalyzing ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Analisando...
+                      </>
+                    ) : (
+                      <>
+                        <Brain className="mr-2 h-4 w-4" />
+                        🔍 Analisar Documento
+                      </>
+                    )}
+                  </Button>
+                  
+                  {businessAnalysis && (
                     <Button 
                       onClick={generateMultipleOptions} 
                       disabled={isGeneratingOptions}
@@ -449,11 +452,36 @@ export default function AdCreator() {
                         </>
                       )}
                     </Button>
-                  </>
+                  )}
+                </div>
+                
+                {!apiManager.hasApiKey('openai') && (
+                  <div className="bg-orange-50 dark:bg-orange-950/20 p-3 rounded-lg border border-orange-200 dark:border-orange-800">
+                    <p className="text-sm text-orange-700 dark:text-orange-300">
+                      ⚠️ Configure sua chave API OpenAI na aba "APIs" para continuar
+                    </p>
+                  </div>
                 )}
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* APIs Tab */}
+          <TabsContent value="apis">
+            <ApiConfigPanel onConfigChange={() => {}} />
+          </TabsContent>
+
+          {/* Audio Tab */}
+          <TabsContent value="audio">
+            <AudioRecorderPanel 
+              onTranscriptionComplete={(text) => {
+                setDocumentText(text);
+              }}
+            />
+          </TabsContent>
+        </Tabs>
+
+        <div className="space-y-6">
 
           {/* Business Analysis Results */}
           {showAnalysis && businessAnalysis && (
