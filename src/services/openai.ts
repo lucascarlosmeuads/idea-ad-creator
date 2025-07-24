@@ -2,7 +2,7 @@ import { toast } from "sonner";
 
 export interface GenerateImageParams {
   prompt: string;
-  size?: "1024x1024" | "1792x1024" | "1024x1792" | "1080x1080";
+  size?: "1024x1024" | "1792x1024" | "1024x1792";
   quality?: "standard" | "hd";
   style?: "vivid" | "natural";
   textPosition?: "center" | "top" | "bottom" | "left" | "right";
@@ -168,7 +168,10 @@ REGRAS:
       }
 
       const data = await response.json();
-      const optionsText = data.choices[0].message.content;
+      let optionsText = data.choices[0].message.content;
+      
+      // Remove markdown formatting if present
+      optionsText = optionsText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       
       return JSON.parse(optionsText);
     } catch (error) {
@@ -231,7 +234,10 @@ IMPORTANTE:
       }
 
       const data = await response.json();
-      const promptText = data.choices[0].message.content;
+      let promptText = data.choices[0].message.content;
+      
+      // Remove markdown formatting if present
+      promptText = promptText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       
       return JSON.parse(promptText);
     } catch (error) {
@@ -254,7 +260,7 @@ IMPORTANTE:
           model: "dall-e-3",
           prompt: enhancedPrompt,
           n: 1,
-          size: params.size || "1080x1080",
+          size: params.size || "1024x1024",
           quality: params.quality || "hd",
           style: params.style || "vivid",
         }),

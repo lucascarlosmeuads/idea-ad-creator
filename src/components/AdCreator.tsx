@@ -227,7 +227,7 @@ export default function AdCreator() {
       setImagePrompt(selectedImageDescription);
       
       // Create complete prompt for Instagram format
-      const completePrompt = `${selectedImageDescription}. Include the text "${selectedTopPhrase}" prominently at the top of the image in large, bold letters, and "${selectedBottomCTA}" at the bottom in smaller but clear text. Design for Instagram post format (1080x1080), optimized for Meta Ads with high visual impact and professional typography. Text must be in Portuguese and clearly legible.`;
+      const completePrompt = `${selectedImageDescription}. Include the text "${selectedTopPhrase}" prominently at the top of the image in large, bold letters, and "${selectedBottomCTA}" at the bottom in smaller but clear text. Design for Instagram post format (1024x1024), optimized for Meta Ads with high visual impact and professional typography. Text must be in Portuguese and clearly legible.`;
       
       // Generate the image
       const imageResult = await openaiService.generateImage({
@@ -235,7 +235,7 @@ export default function AdCreator() {
         mainText: selectedTopPhrase,
         subText: selectedBottomCTA,
         textPosition: "center",
-        size: "1080x1080",
+        size: "1024x1024",
         quality: "hd",
         style: "vivid"
       });
@@ -552,7 +552,7 @@ export default function AdCreator() {
                       ) : (
                         <>
                           <Zap className="mr-2 h-4 w-4" />
-                          🎯 Gerar Anúncio com Seleção (1080x1080)
+                          🎯 Gerar Anúncio com Seleção (1024x1024)
                         </>
                       )}
                     </Button>
@@ -569,7 +569,7 @@ export default function AdCreator() {
             {/* Manual Controls */}
             <Card className="bg-gradient-card border-border shadow-card">
               <CardHeader>
-                <CardTitle>🎨 Criação Manual (Opcional)</CardTitle>
+                <CardTitle>🎨 Personalização Final</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid md:grid-cols-1 gap-4">
