@@ -1,5 +1,6 @@
 import { OpenAIService, type GenerateImageParams as OpenAIParams, type GeneratedImage as OpenAIImage } from './openai';
 import { RunwareService, type GenerateImageParams as RunwareParams, type GeneratedImage as RunwareImage } from './runware';
+import { RunwayService, type RunwayGenerateImageParams, type RunwayGeneratedImage } from './runway';
 import { ApiConfigManager, type ImageProvider } from './apiConfig';
 import { toast } from 'sonner';
 
@@ -130,18 +131,48 @@ class RunwareProvider implements ImageProviderInterface {
   }
 }
 
-// Future providers can be added here
+// Runway Provider Implementation
 class RunwayProvider implements ImageProviderInterface {
+  private service: RunwayService | null = null;
+  private apiConfigManager = ApiConfigManager.getInstance();
+
+  private getService(): RunwayService {
+    const apiKey = this.apiConfigManager.getApiKey('runway');
+    if (!apiKey) {
+      throw new Error('Chave API Runway não configurada');
+    }
+    
+    if (!this.service) {
+      this.service = new RunwayService(apiKey);
+    }
+    
+    return this.service;
+  }
+
   async generateImage(params: UnifiedImageParams): Promise<UnifiedImageResult> {
-    throw new Error('Runway provider não implementado ainda');
+    const service = this.getService();
+    
+    const runwayParams: RunwayGenerateImageParams = {
+      prompt: params.prompt,
+      seed: params.seed
+    };
+    
+    const result = await service.generateImage(runwayParams);
+    
+    return {
+      url: result.url,
+      prompt: result.prompt,
+      seed: result.seed,
+      provider: 'runway'
+    };
   }
 
   isConfigured(): boolean {
-    return false;
+    return this.apiConfigManager.hasApiKey('runway');
   }
 
   getProviderName(): string {
-    return 'Runway ML (Em breve)';
+    return 'Runway ML Gen-4';
   }
 }
 
@@ -239,7 +270,7 @@ export class ImageProviderFactory {
       key: key as ImageProvider,
       name: provider.getProviderName(),
       configured: provider.isConfigured(),
-      comingSoon: ['runway', 'midjourney', 'replicate'].includes(key)
+      comingSoon: ['midjourney', 'replicate'].includes(key)
     }));
   }
 
