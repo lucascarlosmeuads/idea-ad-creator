@@ -4,51 +4,107 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Loader2, Download, Wand2, Key, FileText, Brain, Zap } from "lucide-react";
+import { Loader2, Download, Wand2, Key, FileText, Brain, Zap, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import heroImage from "@/assets/idea-mining-hero.jpg";
 import { OpenAIService, type BusinessAnalysis, type AdPromptElements, type MultipleAdOptions } from "@/services/openai";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 
-interface AdPreviewProps {
-  topText: string;
-  imageUrl: string;
-  bottomText: string;
+interface GeneratedImageData {
+  id: string;
+  url: string;
+  topPhrase: string;
+  bottomCTA: string;
+  imageDescription: string;
+  timestamp: Date;
 }
 
-const AdPreview = ({ topText, imageUrl, bottomText }: AdPreviewProps) => (
-  <Card className="bg-gradient-card border-border shadow-card overflow-hidden">
-    <div className="p-8 space-y-6">
-      {/* Top Text */}
-      <div className="text-center">
-        <h2 className="text-2xl md:text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent leading-tight">
-          {topText || "Sua frase principal aqui"}
-        </h2>
-      </div>
-      
-      {/* Image */}
-      <div className="relative group">
-        <div className="absolute inset-0 bg-gradient-primary opacity-20 rounded-lg blur-xl transition-opacity group-hover:opacity-30"></div>
-        <img 
-          src={imageUrl || heroImage}
-          alt="Imagem do anúncio"
-          className="relative w-full h-64 object-cover rounded-lg border border-border/50"
-        />
-      </div>
-      
-      {/* Bottom Text */}
-      <div className="text-center space-y-3">
-        <p className="text-muted-foreground leading-relaxed">
-          {bottomText || "Sua descrição detalhada aqui"}
-        </p>
-        <Button className="bg-gradient-primary hover:opacity-90 transition-opacity shadow-glow">
-          Começar Agora
-        </Button>
-      </div>
-    </div>
-  </Card>
-);
+interface ImageGalleryProps {
+  images: GeneratedImageData[];
+  activeImageId: string | null;
+  onImageSelect: (imageId: string) => void;
+  onDownload: (imageUrl: string, index: number) => void;
+}
+
+const ImageGallery = ({ images, activeImageId, onImageSelect, onDownload }: ImageGalleryProps) => {
+  if (images.length === 0) return null;
+
+  const activeImage = images.find(img => img.id === activeImageId) || images[images.length - 1];
+
+  return (
+    <Card className="bg-gradient-card border-border shadow-card">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ImageIcon className="h-5 w-5" />
+          🖼️ Galeria de Anúncios Gerados
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Main Image Display */}
+        <div className="text-center space-y-4">
+          <div className="relative group">
+            <div className="absolute inset-0 bg-gradient-primary opacity-20 rounded-lg blur-xl transition-opacity group-hover:opacity-30"></div>
+            <img 
+              src={activeImage.url}
+              alt="Anúncio gerado"
+              className="relative w-full max-w-md mx-auto rounded-lg border border-border/50 shadow-lg"
+            />
+          </div>
+          
+          {/* Image Details */}
+          <div className="bg-secondary/20 p-4 rounded-lg space-y-2">
+            <h3 className="font-bold text-lg text-primary">{activeImage.topPhrase}</h3>
+            <p className="text-sm text-muted-foreground">{activeImage.imageDescription}</p>
+            <p className="font-semibold text-accent">{activeImage.bottomCTA}</p>
+            <p className="text-xs text-muted-foreground">
+              Gerado em: {activeImage.timestamp.toLocaleString('pt-BR')}
+            </p>
+          </div>
+          
+          {/* Download Button */}
+          <Button 
+            onClick={() => onDownload(activeImage.url, images.findIndex(img => img.id === activeImage.id))}
+            className="w-full bg-gradient-primary hover:opacity-90 transition-opacity shadow-glow"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            📥 Baixar Anúncio
+          </Button>
+        </div>
+
+        {/* Thumbnail History */}
+        {images.length > 1 && (
+          <div className="space-y-3">
+            <h4 className="font-semibold text-foreground">📚 Histórico de Imagens:</h4>
+            <div className="grid grid-cols-3 gap-2">
+              {images.slice().reverse().map((image, index) => (
+                <button
+                  key={image.id}
+                  onClick={() => onImageSelect(image.id)}
+                  className={`relative group rounded-lg overflow-hidden border-2 transition-all ${
+                    activeImageId === image.id 
+                      ? 'border-primary shadow-glow' 
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <img 
+                    src={image.url}
+                    alt={`Anúncio ${images.length - index}`}
+                    className="w-full h-20 object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors"></div>
+                  <div className="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1 rounded">
+                    #{images.length - index}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
 
 export default function AdCreator() {
   const [topText, setTopText] = useState("🔥 Descubra o Minerador de Ideias que Revoluciona Negócios Digitais");
@@ -74,6 +130,10 @@ export default function AdCreator() {
   const [selectedTopPhrase, setSelectedTopPhrase] = useState<string>("");
   const [selectedImageDescription, setSelectedImageDescription] = useState<string>("");
   const [selectedBottomCTA, setSelectedBottomCTA] = useState<string>("");
+  
+  // Image gallery state
+  const [generatedImages, setGeneratedImages] = useState<GeneratedImageData[]>([]);
+  const [activeImageId, setActiveImageId] = useState<string | null>(null);
 
   const analyzeDocument = async () => {
     if (!documentText.trim()) {
@@ -240,7 +300,21 @@ export default function AdCreator() {
         style: "vivid"
       });
       
+      // Create new image data
+      const newImageData: GeneratedImageData = {
+        id: Date.now().toString(),
+        url: imageResult.url,
+        topPhrase: selectedTopPhrase,
+        bottomCTA: selectedBottomCTA,
+        imageDescription: selectedImageDescription,
+        timestamp: new Date()
+      };
+      
+      // Add to gallery and set as active
+      setGeneratedImages(prev => [...prev, newImageData]);
+      setActiveImageId(newImageData.id);
       setGeneratedImageUrl(imageResult.url);
+      
       toast.success("Anúncio gerado com as opções selecionadas!");
     } catch (error) {
       console.error("Erro ao gerar imagem:", error);
@@ -250,15 +324,23 @@ export default function AdCreator() {
     }
   };
 
-  const downloadAd = () => {
-    if (generatedImageUrl) {
+  const downloadAd = (imageUrl: string, index: number) => {
+    if (imageUrl) {
       const link = document.createElement("a");
-      link.href = generatedImageUrl;
-      link.download = "anuncio-gerado.png";
+      link.href = imageUrl;
+      link.download = `anuncio-gerado-${index + 1}.png`;
       link.click();
       toast.success("Download iniciado!");
     } else {
       toast.error("Nenhuma imagem para baixar");
+    }
+  };
+
+  const handleImageSelect = (imageId: string) => {
+    setActiveImageId(imageId);
+    const selectedImage = generatedImages.find(img => img.id === imageId);
+    if (selectedImage) {
+      setGeneratedImageUrl(selectedImage.url);
     }
   };
 
@@ -348,24 +430,6 @@ export default function AdCreator() {
                 
                 {businessAnalysis && (
                   <>
-                    <Button 
-                      onClick={generateCompleteAd} 
-                      disabled={isGeneratingImage}
-                      variant="outline"
-                      className="flex-1"
-                    >
-                      {isGeneratingImage ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Gerando...
-                        </>
-                      ) : (
-                        <>
-                          <Zap className="mr-2 h-4 w-4" />
-                          🚀 Gerar Anúncio Rápido
-                        </>
-                      )}
-                    </Button>
                     
                     <Button 
                       onClick={generateMultipleOptions} 
@@ -562,134 +626,13 @@ export default function AdCreator() {
             </Card>
           )}
 
-          <Separator />
-
-          {/* Manual Controls and Preview */}
-          <div className="grid lg:grid-cols-2 gap-8">
-            {/* Manual Controls */}
-            <Card className="bg-gradient-card border-border shadow-card">
-              <CardHeader>
-                <CardTitle>🎨 Personalização Final</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid md:grid-cols-1 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="topText" className="text-foreground font-medium">
-                      Frase Principal (Topo)
-                    </Label>
-                    <Input
-                      id="topText"
-                      value={topText}
-                      onChange={(e) => setTopText(e.target.value)}
-                      placeholder="Digite a frase principal..."
-                      className="bg-background/50 border-border"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="bottomText" className="text-foreground font-medium">
-                      Descrição (Parte Inferior)
-                    </Label>
-                    <Textarea
-                      id="bottomText"
-                      value={bottomText}
-                      onChange={(e) => setBottomText(e.target.value)}
-                      placeholder="Digite a descrição detalhada..."
-                      rows={3}
-                      className="bg-background/50 border-border resize-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="imagePrompt" className="text-foreground font-medium">
-                    Descrição da Imagem
-                  </Label>
-                  <Textarea
-                    id="imagePrompt"
-                    placeholder="Descreva a imagem que deseja gerar..."
-                    value={imagePrompt}
-                    onChange={(e) => setImagePrompt(e.target.value)}
-                    rows={2}
-                    className="bg-background/50 border-border resize-none"
-                  />
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id="includeText"
-                      checked={includeTextInImage}
-                      onChange={(e) => setIncludeTextInImage(e.target.checked)}
-                      className="rounded border-border"
-                    />
-                    <Label htmlFor="includeText" className="text-sm">
-                      Incluir texto do anúncio dentro da imagem
-                    </Label>
-                  </div>
-
-                  {includeTextInImage && (
-                    <div className="space-y-2">
-                      <Label className="text-foreground font-medium">
-                        Posição do Texto na Imagem
-                      </Label>
-                      <Select value={textPosition} onValueChange={setTextPosition}>
-                        <SelectTrigger className="bg-background/50 border-border">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="center">Centro</SelectItem>
-                          <SelectItem value="top">Topo</SelectItem>
-                          <SelectItem value="bottom">Parte Inferior</SelectItem>
-                          <SelectItem value="left">Esquerda</SelectItem>
-                          <SelectItem value="right">Direita</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </div>
-
-                <Button 
-                  onClick={generateCustomImage} 
-                  disabled={isGeneratingImage || !imagePrompt || !apiKey.trim()}
-                  className="w-full bg-gradient-primary hover:opacity-90"
-                >
-                  {isGeneratingImage ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Gerando...
-                    </>
-                  ) : (
-                    <>
-                      <Wand2 className="mr-2 h-4 w-4" />
-                      Gerar Imagem Personalizada
-                    </>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Preview */}
-            <div className="space-y-4">
-              <h3 className="text-xl font-semibold text-foreground">🎯 Preview do Anúncio Final</h3>
-              <AdPreview 
-                topText={includeTextInImage ? "" : topText}
-                imageUrl={generatedImageUrl || heroImage}
-                bottomText={includeTextInImage ? "" : bottomText}
-              />
-              
-              {generatedImageUrl && (
-                <Button 
-                  onClick={downloadAd}
-                  className="w-full bg-gradient-primary hover:opacity-90 transition-opacity shadow-glow"
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  📥 Baixar Anúncio
-                </Button>
-              )}
-            </div>
-          </div>
+          {/* Image Gallery */}
+          <ImageGallery 
+            images={generatedImages}
+            activeImageId={activeImageId}
+            onImageSelect={handleImageSelect}
+            onDownload={downloadAd}
+          />
         </div>
       </div>
     </div>
