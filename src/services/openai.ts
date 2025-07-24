@@ -2,7 +2,7 @@ import { toast } from "sonner";
 
 export interface GenerateImageParams {
   prompt: string;
-  size?: "1024x1024" | "1792x1024" | "1024x1792";
+  size?: "1024x1024" | "1792x1024" | "1024x1792" | "1080x1080";
   quality?: "standard" | "hd";
   style?: "vivid" | "natural";
   textPosition?: "center" | "top" | "bottom" | "left" | "right";
@@ -28,6 +28,12 @@ export interface AdPromptElements {
   imageDescription: string;
   bottomCTA: string;
   completePrompt: string;
+}
+
+export interface MultipleAdOptions {
+  topPhrases: string[];
+  imageDescriptions: string[];
+  bottomCTAs: string[];
 }
 
 export class OpenAIService {
@@ -83,6 +89,91 @@ Responda APENAS com o JSON válido, sem texto adicional.`;
     } catch (error) {
       console.error("Erro ao analisar documento:", error);
       throw new Error("Falha na análise do documento. Verifique sua chave API e tente novamente.");
+    }
+  }
+
+  async generateMultipleAdOptions(analysis: BusinessAnalysis): Promise<MultipleAdOptions> {
+    const prompt = `
+Com base na análise do negócio, crie MÚLTIPLAS OPÇÕES para um anúncio Meta Ads formato Instagram:
+
+ANÁLISE DO NEGÓCIO:
+- Tipo: ${analysis.businessType}
+- Público: ${analysis.targetAudience}
+- Dores: ${analysis.painPoints.join(', ')}
+- Valor Único: ${analysis.uniqueValue}
+- Oportunidades: ${analysis.persuasionOpportunities.join(', ')}
+
+Gere 7 OPÇÕES de cada elemento:
+
+1. FRASES DE TOPO: Extremamente agressivas, sensacionalistas, geradoras de cliques (máximo 8 palavras cada)
+2. CONCEITOS VISUAIS: Imagens contraintuitivas e impactantes que chamam atenção no feed do Instagram
+3. CALLS-TO-ACTION: Frases curtas e intrigantes (máximo 6 palavras cada)
+
+FORMATO OBRIGATÓRIO - responda APENAS o JSON:
+{
+  "topPhrases": [
+    "Frase sensacionalista 1",
+    "Frase sensacionalista 2",
+    "Frase sensacionalista 3",
+    "Frase sensacionalista 4",
+    "Frase sensacionalista 5",
+    "Frase sensacionalista 6",
+    "Frase sensacionalista 7"
+  ],
+  "imageDescriptions": [
+    "Conceito visual contraintuitivo 1 para Instagram",
+    "Conceito visual contraintuitivo 2 para Instagram",
+    "Conceito visual contraintuitivo 3 para Instagram",
+    "Conceito visual contraintuitivo 4 para Instagram",
+    "Conceito visual contraintuitivo 5 para Instagram",
+    "Conceito visual contraintuitivo 6 para Instagram",
+    "Conceito visual contraintuitivo 7 para Instagram"
+  ],
+  "bottomCTAs": [
+    "CTA intrigante 1",
+    "CTA intrigante 2", 
+    "CTA intrigante 3",
+    "CTA intrigante 4",
+    "CTA intrigante 5",
+    "CTA intrigante 6",
+    "CTA intrigante 7"
+  ]
+}
+
+REGRAS:
+- Português brasileiro perfeito
+- Sensacionalismo sem ofensividade
+- Incongruência visual para parar o scroll
+- Foco total em curiosidade extrema
+- Formato Instagram 1080x1080`;
+
+    try {
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4.1-2025-04-14",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 2000,
+          temperature: 0.9,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || "Erro ao gerar opções múltiplas");
+      }
+
+      const data = await response.json();
+      const optionsText = data.choices[0].message.content;
+      
+      return JSON.parse(optionsText);
+    } catch (error) {
+      console.error("Erro ao gerar opções múltiplas:", error);
+      throw new Error("Falha na geração de opções múltiplas. Tente novamente.");
     }
   }
 
@@ -163,7 +254,7 @@ IMPORTANTE:
           model: "dall-e-3",
           prompt: enhancedPrompt,
           n: 1,
-          size: params.size || "1024x1024",
+          size: params.size || "1080x1080",
           quality: params.quality || "hd",
           style: params.style || "vivid",
         }),

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Download, Wand2, Key, FileText, Brain, Zap } from "lucide-react";
 import { toast } from "sonner";
 import heroImage from "@/assets/idea-mining-hero.jpg";
-import { OpenAIService, type BusinessAnalysis, type AdPromptElements } from "@/services/openai";
+import { OpenAIService, type BusinessAnalysis, type AdPromptElements, type MultipleAdOptions } from "@/services/openai";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 
@@ -67,6 +67,13 @@ export default function AdCreator() {
   const [businessAnalysis, setBusinessAnalysis] = useState<BusinessAnalysis | null>(null);
   const [generatedPrompt, setGeneratedPrompt] = useState<AdPromptElements | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
+  
+  // Multiple options state
+  const [multipleOptions, setMultipleOptions] = useState<MultipleAdOptions | null>(null);
+  const [isGeneratingOptions, setIsGeneratingOptions] = useState(false);
+  const [selectedTopPhrase, setSelectedTopPhrase] = useState<string>("");
+  const [selectedImageDescription, setSelectedImageDescription] = useState<string>("");
+  const [selectedBottomCTA, setSelectedBottomCTA] = useState<string>("");
 
   const analyzeDocument = async () => {
     if (!documentText.trim()) {
@@ -174,6 +181,75 @@ export default function AdCreator() {
     }
   };
 
+  const generateMultipleOptions = async () => {
+    if (!businessAnalysis) {
+      toast.error("Primeiro analise um documento");
+      return;
+    }
+
+    if (!apiKey.trim()) {
+      toast.error("Por favor, insira sua chave da API OpenAI");
+      return;
+    }
+
+    setIsGeneratingOptions(true);
+    try {
+      const openaiService = new OpenAIService(apiKey);
+      const options = await openaiService.generateMultipleAdOptions(businessAnalysis);
+      setMultipleOptions(options);
+      toast.success("Múltiplas opções geradas com sucesso!");
+    } catch (error) {
+      console.error("Erro ao gerar múltiplas opções:", error);
+      toast.error("Erro ao gerar opções. Tente novamente.");
+    } finally {
+      setIsGeneratingOptions(false);
+    }
+  };
+
+  const generateImageFromSelection = async () => {
+    if (!selectedTopPhrase || !selectedImageDescription || !selectedBottomCTA) {
+      toast.error("Selecione uma opção de cada categoria");
+      return;
+    }
+
+    if (!apiKey.trim()) {
+      toast.error("Por favor, insira sua chave da API OpenAI");
+      return;
+    }
+
+    setIsGeneratingImage(true);
+    try {
+      const openaiService = new OpenAIService(apiKey);
+      
+      // Update the manual fields with selected options
+      setTopText(selectedTopPhrase);
+      setBottomText(selectedBottomCTA);
+      setImagePrompt(selectedImageDescription);
+      
+      // Create complete prompt for Instagram format
+      const completePrompt = `${selectedImageDescription}. Include the text "${selectedTopPhrase}" prominently at the top of the image in large, bold letters, and "${selectedBottomCTA}" at the bottom in smaller but clear text. Design for Instagram post format (1080x1080), optimized for Meta Ads with high visual impact and professional typography. Text must be in Portuguese and clearly legible.`;
+      
+      // Generate the image
+      const imageResult = await openaiService.generateImage({
+        prompt: completePrompt,
+        mainText: selectedTopPhrase,
+        subText: selectedBottomCTA,
+        textPosition: "center",
+        size: "1080x1080",
+        quality: "hd",
+        style: "vivid"
+      });
+      
+      setGeneratedImageUrl(imageResult.url);
+      toast.success("Anúncio gerado com as opções selecionadas!");
+    } catch (error) {
+      console.error("Erro ao gerar imagem:", error);
+      toast.error("Erro ao gerar anúncio. Tente novamente.");
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
   const downloadAd = () => {
     if (generatedImageUrl) {
       const link = document.createElement("a");
@@ -271,24 +347,45 @@ export default function AdCreator() {
                 </Button>
                 
                 {businessAnalysis && (
-                  <Button 
-                    onClick={generateCompleteAd} 
-                    disabled={isGeneratingImage}
-                    variant="gradient"
-                    className="flex-1"
-                  >
-                    {isGeneratingImage ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Gerando...
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="mr-2 h-4 w-4" />
-                        🚀 Gerar Anúncio Completo
-                      </>
-                    )}
-                  </Button>
+                  <>
+                    <Button 
+                      onClick={generateCompleteAd} 
+                      disabled={isGeneratingImage}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      {isGeneratingImage ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Gerando...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="mr-2 h-4 w-4" />
+                          🚀 Gerar Anúncio Rápido
+                        </>
+                      )}
+                    </Button>
+                    
+                    <Button 
+                      onClick={generateMultipleOptions} 
+                      disabled={isGeneratingOptions}
+                      variant="gradient"
+                      className="flex-1"
+                    >
+                      {isGeneratingOptions ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Gerando...
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="mr-2 h-4 w-4" />
+                          ✨ Gerar Múltiplas Opções
+                        </>
+                      )}
+                    </Button>
+                  </>
                 )}
               </div>
             </CardContent>
@@ -359,6 +456,108 @@ export default function AdCreator() {
                   <h4 className="font-semibold text-primary">Call-to-Action:</h4>
                   <p className="text-lg font-semibold bg-accent/20 p-3 rounded-md">{generatedPrompt.bottomCTA}</p>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Multiple Options Selection */}
+          {multipleOptions && (
+            <Card className="bg-gradient-card border-border shadow-card">
+              <CardHeader>
+                <CardTitle>🎯 Selecione os Elementos do seu Anúncio Meta Ads</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Top Phrases Selection */}
+                <div>
+                  <h4 className="font-semibold text-primary mb-3">📈 Frases de Topo (Sensacionalistas):</h4>
+                  <div className="grid md:grid-cols-2 gap-2">
+                    {multipleOptions.topPhrases.map((phrase, index) => (
+                      <button
+                        key={index}
+                        onClick={() => setSelectedTopPhrase(phrase)}
+                        className={`p-3 rounded-lg border text-left transition-all ${
+                          selectedTopPhrase === phrase
+                            ? 'border-primary bg-primary/10 text-primary font-semibold'
+                            : 'border-border bg-background/50 hover:border-primary/50'
+                        }`}
+                      >
+                        {phrase}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Image Descriptions Selection */}
+                <div>
+                  <h4 className="font-semibold text-primary mb-3">🎨 Conceitos Visuais (Contraintuitivos):</h4>
+                  <div className="grid md:grid-cols-1 gap-2">
+                    {multipleOptions.imageDescriptions.map((description, index) => (
+                      <button
+                        key={index}
+                        onClick={() => setSelectedImageDescription(description)}
+                        className={`p-3 rounded-lg border text-left transition-all ${
+                          selectedImageDescription === description
+                            ? 'border-primary bg-primary/10 text-primary font-semibold'
+                            : 'border-border bg-background/50 hover:border-primary/50'
+                        }`}
+                      >
+                        {description}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Bottom CTAs Selection */}
+                <div>
+                  <h4 className="font-semibold text-primary mb-3">🚀 Calls-to-Action (Intrigantes):</h4>
+                  <div className="grid md:grid-cols-2 gap-2">
+                    {multipleOptions.bottomCTAs.map((cta, index) => (
+                      <button
+                        key={index}
+                        onClick={() => setSelectedBottomCTA(cta)}
+                        className={`p-3 rounded-lg border text-left transition-all ${
+                          selectedBottomCTA === cta
+                            ? 'border-primary bg-primary/10 text-primary font-semibold'
+                            : 'border-border bg-background/50 hover:border-primary/50'
+                        }`}
+                      >
+                        {cta}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Generate Button */}
+                {selectedTopPhrase && selectedImageDescription && selectedBottomCTA && (
+                  <div className="pt-4 border-t border-border">
+                    <div className="bg-secondary/20 p-4 rounded-lg mb-4">
+                      <h5 className="font-semibold text-primary mb-2">🎯 Sua Seleção:</h5>
+                      <div className="space-y-2 text-sm">
+                        <p><strong>Topo:</strong> {selectedTopPhrase}</p>
+                        <p><strong>Visual:</strong> {selectedImageDescription.slice(0, 100)}...</p>
+                        <p><strong>CTA:</strong> {selectedBottomCTA}</p>
+                      </div>
+                    </div>
+                    
+                    <Button 
+                      onClick={generateImageFromSelection} 
+                      disabled={isGeneratingImage}
+                      className="w-full bg-gradient-primary hover:opacity-90 shadow-glow"
+                    >
+                      {isGeneratingImage ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Gerando Anúncio Instagram...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="mr-2 h-4 w-4" />
+                          🎯 Gerar Anúncio com Seleção (1080x1080)
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
