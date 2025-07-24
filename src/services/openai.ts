@@ -15,12 +15,138 @@ export interface GeneratedImage {
   revisedPrompt: string;
 }
 
+export interface BusinessAnalysis {
+  businessType: string;
+  targetAudience: string;
+  painPoints: string[];
+  uniqueValue: string;
+  persuasionOpportunities: string[];
+}
+
+export interface AdPromptElements {
+  topPhrase: string;
+  imageDescription: string;
+  bottomCTA: string;
+  completePrompt: string;
+}
+
 export class OpenAIService {
   private apiKey: string;
   private baseUrl = "https://api.openai.com/v1";
 
   constructor(apiKey: string) {
     this.apiKey = apiKey;
+  }
+
+  async analyzeBusinessDocument(documentText: string): Promise<BusinessAnalysis> {
+    const prompt = `
+Analise o seguinte documento de negócio e extraia informações estratégicas para criação de anúncios persuasivos:
+
+DOCUMENTO:
+${documentText}
+
+Forneça a análise em formato JSON com os seguintes campos:
+{
+  "businessType": "Tipo específico do negócio",
+  "targetAudience": "Perfil detalhado do público-alvo",
+  "painPoints": ["Dor principal 1", "Dor principal 2", "Dor principal 3"],
+  "uniqueValue": "Principal diferencial/proposta de valor",
+  "persuasionOpportunities": ["Oportunidade 1", "Oportunidade 2", "Oportunidade 3"]
+}
+
+Responda APENAS com o JSON válido, sem texto adicional.`;
+
+    try {
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4.1-2025-04-14",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 1000,
+          temperature: 0.7,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || "Erro ao analisar documento");
+      }
+
+      const data = await response.json();
+      const analysisText = data.choices[0].message.content;
+      
+      return JSON.parse(analysisText);
+    } catch (error) {
+      console.error("Erro ao analisar documento:", error);
+      throw new Error("Falha na análise do documento. Verifique sua chave API e tente novamente.");
+    }
+  }
+
+  async generateAdPrompt(analysis: BusinessAnalysis): Promise<AdPromptElements> {
+    const prompt = `
+Com base na análise do negócio, crie elementos para um anúncio altamente persuasivo e sensacionalista:
+
+ANÁLISE DO NEGÓCIO:
+- Tipo: ${analysis.businessType}
+- Público: ${analysis.targetAudience}
+- Dores: ${analysis.painPoints.join(', ')}
+- Valor Único: ${analysis.uniqueValue}
+- Oportunidades: ${analysis.persuasionOpportunities.join(', ')}
+
+Crie um anúncio com:
+
+1. FRASE DE TOPO: Uma frase extremamente agressiva, sensacionalista e geradora de cliques (máximo 8 palavras)
+2. DESCRIÇÃO DA IMAGEM: Conceito visual com incongruência criativa e impactante
+3. CALL-TO-ACTION: Frase curta e intrigante na parte inferior (máximo 6 palavras)
+
+Formate a resposta em JSON:
+{
+  "topPhrase": "Frase de topo sensacionalista",
+  "imageDescription": "Descrição detalhada da imagem com incongruência criativa",
+  "bottomCTA": "Call-to-action intrigante",
+  "completePrompt": "Prompt completo unificado para geração da imagem incluindo a frase de topo '...' no centro da imagem e o CTA '...' na parte inferior, com a descrição visual criativa"
+}
+
+IMPORTANTE: 
+- Use português brasileiro perfeito
+- Seja sensacionalista mas não ofensivo
+- Crie incongruência visual interessante
+- Foque em gerar curiosidade extrema
+- No completePrompt, integre TUDO em um prompt único para DALL-E
+- Responda APENAS com JSON válido`;
+
+    try {
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4.1-2025-04-14",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 1500,
+          temperature: 0.9,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || "Erro ao gerar prompt do anúncio");
+      }
+
+      const data = await response.json();
+      const promptText = data.choices[0].message.content;
+      
+      return JSON.parse(promptText);
+    } catch (error) {
+      console.error("Erro ao gerar prompt do anúncio:", error);
+      throw new Error("Falha na geração do prompt. Tente novamente.");
+    }
   }
 
   async generateImage(params: GenerateImageParams): Promise<GeneratedImage> {
@@ -73,7 +199,7 @@ export class OpenAIService {
         prompt += `. Include the text "${params.subText}" ${textInstruction} in clear, readable letters.`;
       }
 
-      prompt += ` The text should be perfectly integrated into the design, not overlaid. Use professional typography that matches the overall aesthetic.`;
+      prompt += ` The text should be perfectly integrated into the design, not overlaid. Use professional typography that matches the overall aesthetic. Text must be in Portuguese and clearly legible.`;
     }
 
     return prompt;
