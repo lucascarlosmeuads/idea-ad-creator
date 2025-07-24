@@ -261,13 +261,13 @@ export class ImageProviderFactory {
   }
 
   public static getAvailableProviders(): Array<{
-    key: ImageProvider;
+    id: ImageProvider;
     name: string;
     configured: boolean;
     comingSoon: boolean;
   }> {
     return Object.entries(this.providers).map(([key, provider]) => ({
-      key: key as ImageProvider,
+      id: key as ImageProvider,
       name: provider.getProviderName(),
       configured: provider.isConfigured(),
       comingSoon: ['midjourney', 'replicate'].includes(key)

@@ -7,13 +7,17 @@ export interface ApiConfig {
   runway?: string;
   midjourney?: string;
   replicate?: string;
+  claude?: string;
+  gemini?: string;
 }
 
 export type ImageProvider = 'openai' | 'runware' | 'runway' | 'midjourney' | 'replicate';
+export type TextProvider = 'openai' | 'claude' | 'gemini';
 
 export interface ApiSettings {
   config: ApiConfig;
   selectedImageProvider: ImageProvider;
+  selectedTextProvider: TextProvider;
 }
 
 const STORAGE_KEY = 'ad_creator_api_settings';
@@ -46,7 +50,8 @@ export class ApiConfigManager {
     
     return {
       config: {},
-      selectedImageProvider: 'openai'
+      selectedImageProvider: 'openai',
+      selectedTextProvider: 'openai'
     };
   }
 
@@ -86,6 +91,12 @@ export class ApiConfigManager {
     toast.success(`Provedor de imagem alterado para ${provider.toUpperCase()}`);
   }
 
+  public setTextProvider(provider: TextProvider): void {
+    this.settings.selectedTextProvider = provider;
+    this.saveSettings();
+    toast.success(`Provedor de texto alterado para ${provider.toUpperCase()}`);
+  }
+
   public getApiKey(provider: keyof ApiConfig): string | undefined {
     return this.settings.config[provider];
   }
@@ -96,6 +107,10 @@ export class ApiConfigManager {
 
   public getSelectedImageProvider(): ImageProvider {
     return this.settings.selectedImageProvider;
+  }
+
+  public getSelectedTextProvider(): TextProvider {
+    return this.settings.selectedTextProvider;
   }
 
   public validateApiKey(provider: keyof ApiConfig, apiKey: string): boolean {
@@ -110,6 +125,10 @@ export class ApiConfigManager {
         return apiKey.length > 10;
       case 'replicate':
         return apiKey.startsWith('r8_') && apiKey.length > 20;
+      case 'claude':
+        return apiKey.startsWith('sk-') && apiKey.length > 20;
+      case 'gemini':
+        return apiKey.length > 10;
       default:
         return apiKey.length > 0;
     }
@@ -130,7 +149,8 @@ export class ApiConfigManager {
   public clearAllSettings(): void {
     this.settings = {
       config: {},
-      selectedImageProvider: 'openai'
+      selectedImageProvider: 'openai',
+      selectedTextProvider: 'openai'
     };
     this.saveSettings();
     toast.success('Todas as configurações foram limpas');
@@ -144,6 +164,10 @@ export class ApiConfigManager {
     try {
       const imported = JSON.parse(settingsJson);
       if (imported.config && imported.selectedImageProvider) {
+        // Ensure backward compatibility
+        if (!imported.selectedTextProvider) {
+          imported.selectedTextProvider = 'openai';
+        }
         this.settings = imported;
         this.saveSettings();
         toast.success('Configurações importadas com sucesso');

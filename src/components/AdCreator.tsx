@@ -12,6 +12,7 @@ import { OpenAIService, type BusinessAnalysis, type AdPromptElements, type Multi
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { ImageProviderFactory, type UnifiedImageParams } from "@/services/imageProviderFactory";
+import { TextProviderFactory } from "@/services/textProviderFactory";
 import { ApiConfigManager } from "@/services/apiConfig";
 import ApiConfigPanel from "./ApiConfigPanel";
 import AudioRecorderPanel from "./AudioRecorderPanel";
@@ -151,22 +152,15 @@ export default function AdCreator() {
       return;
     }
 
-    const openaiKey = apiManager.getApiKey('openai');
-    if (!openaiKey) {
-      toast.error("Por favor, configure sua chave da API OpenAI");
-      return;
-    }
-
     setIsAnalyzing(true);
     try {
-      const openaiService = new OpenAIService(openaiKey);
-      const analysis = await openaiService.analyzeBusinessDocument(documentText);
+      const analysis = await TextProviderFactory.analyzeBusinessDocument(documentText);
       setBusinessAnalysis(analysis);
       setShowAnalysis(true);
       toast.success("Documento analisado com sucesso!");
     } catch (error) {
       console.error("Erro ao analisar documento:", error);
-      toast.error("Erro ao analisar documento. Verifique sua chave API.");
+      toast.error("Erro ao analisar documento. Verifique as configurações da API.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -178,18 +172,10 @@ export default function AdCreator() {
       return;
     }
 
-    const openaiKey = apiManager.getApiKey('openai');
-    if (!openaiKey) {
-      toast.error("Por favor, configure sua chave da API OpenAI");
-      return;
-    }
-
     setIsGeneratingImage(true);
     try {
-      const openaiService = new OpenAIService(openaiKey);
-      
-      // Generate the ad prompt elements
-      const promptElements = await openaiService.generateAdPrompt(businessAnalysis);
+      // Generate the ad prompt elements using TextProviderFactory
+      const promptElements = await TextProviderFactory.generateAdPrompt(businessAnalysis);
       setGeneratedPrompt(promptElements);
       
       // Auto-fill the form fields
@@ -255,16 +241,9 @@ export default function AdCreator() {
       return;
     }
 
-    const openaiKey = apiManager.getApiKey('openai');
-    if (!openaiKey) {
-      toast.error("Por favor, configure sua chave da API OpenAI");
-      return;
-    }
-
     setIsGeneratingOptions(true);
     try {
-      const openaiService = new OpenAIService(openaiKey);
-      const options = await openaiService.generateMultipleAdOptions(businessAnalysis);
+      const options = await TextProviderFactory.generateMultipleAdOptions(businessAnalysis);
       setMultipleOptions(options);
       toast.success("Múltiplas opções geradas com sucesso!");
     } catch (error) {
