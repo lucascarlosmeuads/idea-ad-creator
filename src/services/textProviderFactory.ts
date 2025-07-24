@@ -20,29 +20,28 @@ export interface TextProviderInterface {
 
 // OpenAI Text Provider
 class OpenAITextProvider implements TextProviderInterface {
-  private service: OpenAIService | null = null;
-
-  constructor() {
+  private getService(): OpenAIService {
     const apiManager = ApiConfigManager.getInstance();
     const apiKey = apiManager.getApiKey('openai');
-    if (apiKey) {
-      this.service = new OpenAIService(apiKey);
+    if (!apiKey) {
+      throw new Error('OpenAI não configurado. Configure a chave API nas configurações.');
     }
+    return new OpenAIService(apiKey);
   }
 
   async analyzeBusinessDocument(documentText: string): Promise<BusinessAnalysis> {
-    if (!this.service) throw new Error('OpenAI não configurado');
-    return this.service.analyzeBusinessDocument(documentText);
+    const service = this.getService();
+    return service.analyzeBusinessDocument(documentText);
   }
 
   async generateAdPrompt(analysis: BusinessAnalysis): Promise<AdPromptElements> {
-    if (!this.service) throw new Error('OpenAI não configurado');
-    return this.service.generateAdPrompt(analysis);
+    const service = this.getService();
+    return service.generateAdPrompt(analysis);
   }
 
   async generateMultipleAdOptions(analysis: BusinessAnalysis): Promise<MultipleAdOptions> {
-    if (!this.service) throw new Error('OpenAI não configurado');
-    return this.service.generateMultipleAdOptions(analysis);
+    const service = this.getService();
+    return service.generateMultipleAdOptions(analysis);
   }
 
   isConfigured(): boolean {

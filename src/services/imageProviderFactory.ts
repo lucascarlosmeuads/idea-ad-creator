@@ -34,20 +34,15 @@ export interface ImageProviderInterface {
 
 // OpenAI Provider Implementation
 class OpenAIProvider implements ImageProviderInterface {
-  private service: OpenAIService | null = null;
   private apiConfigManager = ApiConfigManager.getInstance();
 
   private getService(): OpenAIService {
     const apiKey = this.apiConfigManager.getApiKey('openai');
     if (!apiKey) {
-      throw new Error('Chave API OpenAI não configurada');
+      throw new Error('Chave API OpenAI não configurada. Configure nas configurações.');
     }
-    
-    if (!this.service) {
-      this.service = new OpenAIService(apiKey);
-    }
-    
-    return this.service;
+    // Always create a new instance to ensure latest API key
+    return new OpenAIService(apiKey);
   }
 
   async generateImage(params: UnifiedImageParams): Promise<UnifiedImageResult> {
@@ -84,20 +79,15 @@ class OpenAIProvider implements ImageProviderInterface {
 
 // Runware Provider Implementation
 class RunwareProvider implements ImageProviderInterface {
-  private service: RunwareService | null = null;
   private apiConfigManager = ApiConfigManager.getInstance();
 
   private getService(): RunwareService {
     const apiKey = this.apiConfigManager.getApiKey('runware');
     if (!apiKey) {
-      throw new Error('Chave API Runware não configurada');
+      throw new Error('Chave API Runware não configurada. Configure nas configurações.');
     }
-    
-    if (!this.service) {
-      this.service = new RunwareService(apiKey);
-    }
-    
-    return this.service;
+    // Always create a new instance to ensure latest API key
+    return new RunwareService(apiKey);
   }
 
   async generateImage(params: UnifiedImageParams): Promise<UnifiedImageResult> {
@@ -133,20 +123,15 @@ class RunwareProvider implements ImageProviderInterface {
 
 // Runway Provider Implementation
 class RunwayProvider implements ImageProviderInterface {
-  private service: RunwayService | null = null;
   private apiConfigManager = ApiConfigManager.getInstance();
 
   private getService(): RunwayService {
     const apiKey = this.apiConfigManager.getApiKey('runway');
     if (!apiKey) {
-      throw new Error('Chave API Runway não configurada');
+      throw new Error('Chave API Runway não configurada. Configure nas configurações.');
     }
-    
-    if (!this.service) {
-      this.service = new RunwayService(apiKey);
-    }
-    
-    return this.service;
+    // Always create a new instance to ensure latest API key
+    return new RunwayService(apiKey);
   }
 
   async generateImage(params: UnifiedImageParams): Promise<UnifiedImageResult> {

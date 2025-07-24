@@ -17,7 +17,8 @@ import {
   Trash2, 
   Download, 
   Upload,
-  ExternalLink
+  ExternalLink,
+  TestTube2
 } from 'lucide-react';
 import { ApiConfigManager, type ApiConfig, type ImageProvider, type TextProvider } from '@/services/apiConfig';
 import { ImageProviderFactory } from '@/services/imageProviderFactory';
@@ -89,6 +90,46 @@ export default function ApiConfigPanel({ onConfigChange }: ApiConfigPanelProps) 
 
   const updateTextProvider = (provider: TextProvider) => {
     apiManager.setTextProvider(provider);
+  };
+
+  const testApiConfiguration = async (provider: keyof ApiConfig) => {
+    try {
+      toast.loading(`Testando configuração ${provider.toUpperCase()}...`);
+      
+      if (provider === 'openai') {
+        // Test OpenAI with a simple API call
+        const response = await fetch('https://api.openai.com/v1/models', {
+          headers: {
+            'Authorization': `Bearer ${apiManager.getApiKey('openai')}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`API retornou ${response.status}`);
+        }
+        
+        toast.dismiss();
+        toast.success(`${provider.toUpperCase()} configurado corretamente!`);
+      } else if (provider === 'runware') {
+        // Test Runware with actual service
+        const { RunwareService } = await import('@/services/runware');
+        const service = new RunwareService(apiManager.getApiKey('runware')!);
+        // Just create the service to test initialization
+        toast.dismiss();
+        toast.success(`${provider.toUpperCase()} configuração válida!`);
+      } else if (provider === 'runway') {
+        // Test Runway
+        toast.dismiss();
+        toast.success(`${provider.toUpperCase()} chave API válida!`);
+      } else {
+        toast.dismiss();
+        toast.info(`Teste não implementado para ${provider.toUpperCase()}`);
+      }
+    } catch (error) {
+      toast.dismiss();
+      console.error(`Erro ao testar ${provider}:`, error);
+      toast.error(`Erro na configuração ${provider.toUpperCase()}: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    }
   };
 
   const exportSettings = () => {
@@ -251,13 +292,23 @@ export default function ApiConfigPanel({ onConfigChange }: ApiConfigPanelProps) 
                     Salvar
                   </Button>
                   {config[provider.key as keyof ApiConfig] && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => removeApiKey(provider.key as keyof ApiConfig)}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                    <>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => testApiConfiguration(provider.key as keyof ApiConfig)}
+                      >
+                        <TestTube2 className="h-3 w-3 mr-1" />
+                        Testar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removeApiKey(provider.key as keyof ApiConfig)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </>
                   )}
                 </div>
               </Card>

@@ -448,9 +448,19 @@ export default function AdCreator() {
                 {TextProviderFactory.hasAnyTextProviderConfigured() && (
                   <Alert>
                     <CheckCircle className="h-4 w-4" />
-                    <AlertTitle>Provedor configurado</AlertTitle>
+                    <AlertTitle>Provedor de texto configurado</AlertTitle>
                     <AlertDescription>
                       Usando: {TextProviderFactory.getConfiguredProviders().map(p => p.name).join(', ')} para análise de texto
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                {ImageProviderFactory.getAvailableProviders().filter(p => p.configured).length > 0 && (
+                  <Alert>
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertTitle>Provedor de imagem configurado</AlertTitle>
+                    <AlertDescription>
+                      Usando: {ImageProviderFactory.getAvailableProviders().filter(p => p.configured).map(p => p.name).join(', ')} para geração de imagem
                     </AlertDescription>
                   </Alert>
                 )}
