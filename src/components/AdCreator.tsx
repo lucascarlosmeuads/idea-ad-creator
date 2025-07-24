@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Download, Wand2, Key } from "lucide-react";
 import { toast } from "sonner";
 import heroImage from "@/assets/idea-mining-hero.jpg";
-import { RunwareService } from "@/services/runware";
+import { OpenAIService } from "@/services/openai";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface AdPreviewProps {
   topText: string;
@@ -56,6 +57,8 @@ export default function AdCreator() {
   const [apiKey, setApiKey] = useState("");
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [generatedImageUrl, setGeneratedImageUrl] = useState("");
+  const [textPosition, setTextPosition] = useState("center");
+  const [includeTextInImage, setIncludeTextInImage] = useState(true);
 
   const generateCustomImage = async () => {
     if (!imagePrompt.trim()) {
@@ -64,21 +67,24 @@ export default function AdCreator() {
     }
 
     if (!apiKey.trim()) {
-      toast.error("Digite sua chave da API do Runware");
+      toast.error("Digite sua chave da API do OpenAI");
       return;
     }
 
     setIsGeneratingImage(true);
     try {
-      const runwareService = new RunwareService(apiKey);
-      const result = await runwareService.generateImage({
-        positivePrompt: imagePrompt,
-        model: "runware:100@1",
-        numberResults: 1,
-        outputFormat: "WEBP"
+      const openaiService = new OpenAIService(apiKey);
+      const result = await openaiService.generateImage({
+        prompt: imagePrompt,
+        size: "1024x1024",
+        quality: "hd",
+        style: "vivid",
+        textPosition: textPosition as any,
+        mainText: includeTextInImage ? topText : undefined,
+        subText: includeTextInImage ? (bottomText.length > 100 ? bottomText.slice(0, 100) + "..." : bottomText) : undefined,
       });
       
-      setGeneratedImageUrl(result.imageURL);
+      setGeneratedImageUrl(result.url);
       toast.success("Imagem gerada com sucesso!");
     } catch (error) {
       console.error("Erro ao gerar imagem:", error);
@@ -128,7 +134,7 @@ export default function AdCreator() {
 
               <div className="space-y-2">
                 <Label htmlFor="apiKey" className="text-foreground font-medium">
-                  Chave da API Runware
+                  Chave da API OpenAI
                 </Label>
                 <div className="flex gap-2">
                   <Input
@@ -140,7 +146,7 @@ export default function AdCreator() {
                     className="bg-background/50 border-border"
                   />
                   <Button 
-                    onClick={() => window.open('https://runware.ai/', '_blank')}
+                    onClick={() => window.open('https://platform.openai.com/api-keys', '_blank')}
                     size="icon"
                     variant="outline"
                     className="border-border"
@@ -149,8 +155,43 @@ export default function AdCreator() {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Obtenha sua chave em runware.ai
+                  Obtenha sua chave em platform.openai.com/api-keys
                 </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="includeText"
+                    checked={includeTextInImage}
+                    onChange={(e) => setIncludeTextInImage(e.target.checked)}
+                    className="rounded border-border"
+                  />
+                  <Label htmlFor="includeText" className="text-sm">
+                    Incluir texto do anúncio dentro da imagem
+                  </Label>
+                </div>
+
+                {includeTextInImage && (
+                  <div className="space-y-2">
+                    <Label className="text-foreground font-medium">
+                      Posição do Texto na Imagem
+                    </Label>
+                    <Select value={textPosition} onValueChange={setTextPosition}>
+                      <SelectTrigger className="bg-background/50 border-border">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="center">Centro</SelectItem>
+                        <SelectItem value="top">Topo</SelectItem>
+                        <SelectItem value="bottom">Parte Inferior</SelectItem>
+                        <SelectItem value="left">Esquerda</SelectItem>
+                        <SelectItem value="right">Direita</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
