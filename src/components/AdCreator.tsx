@@ -4,9 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Loader2, Download, Wand2 } from "lucide-react";
+import { Loader2, Download, Wand2, Key } from "lucide-react";
 import { toast } from "sonner";
 import heroImage from "@/assets/idea-mining-hero.jpg";
+import { RunwareService } from "@/services/runware";
 
 interface AdPreviewProps {
   topText: string;
@@ -51,20 +52,37 @@ export default function AdCreator() {
   const [topText, setTopText] = useState("🔥 Descubra o Minerador de Ideias que Revoluciona Negócios Digitais");
   const [bottomText, setBottomText] = useState("Transforme insights em oportunidades de ouro. Nossa plataforma usa IA avançada para extrair ideias lucrativas do mercado digital. Pare de procurar - comece a encontrar!");
   const [customImageUrl, setCustomImageUrl] = useState("");
+  const [imagePrompt, setImagePrompt] = useState("");
+  const [apiKey, setApiKey] = useState("");
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [generatedImageUrl, setGeneratedImageUrl] = useState("");
 
   const generateCustomImage = async () => {
-    if (!customImageUrl.trim()) {
+    if (!imagePrompt.trim()) {
       toast.error("Digite uma descrição para a imagem");
+      return;
+    }
+
+    if (!apiKey.trim()) {
+      toast.error("Digite sua chave da API do Runware");
       return;
     }
 
     setIsGeneratingImage(true);
     try {
-      // Aqui você pode integrar com a API do Runware para gerar imagens personalizadas
-      toast.success("Funcionalidade de geração de imagem será implementada");
+      const runwareService = new RunwareService(apiKey);
+      const result = await runwareService.generateImage({
+        positivePrompt: imagePrompt,
+        model: "runware:100@1",
+        numberResults: 1,
+        outputFormat: "WEBP"
+      });
+      
+      setGeneratedImageUrl(result.imageURL);
+      toast.success("Imagem gerada com sucesso!");
     } catch (error) {
-      toast.error("Erro ao gerar imagem");
+      console.error("Erro ao gerar imagem:", error);
+      toast.error("Erro ao gerar imagem. Verifique sua chave da API.");
     } finally {
       setIsGeneratingImage(false);
     }
@@ -109,20 +127,47 @@ export default function AdCreator() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="apiKey" className="text-foreground font-medium">
+                  Chave da API Runware
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="apiKey"
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="Digite sua chave da API..."
+                    className="bg-background/50 border-border"
+                  />
+                  <Button 
+                    onClick={() => window.open('https://runware.ai/', '_blank')}
+                    size="icon"
+                    variant="outline"
+                    className="border-border"
+                  >
+                    <Key className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Obtenha sua chave em runware.ai
+                </p>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="customImage" className="text-foreground font-medium">
                   Descrição para Imagem Personalizada
                 </Label>
                 <div className="flex gap-2">
                   <Input
                     id="customImage"
-                    value={customImageUrl}
-                    onChange={(e) => setCustomImageUrl(e.target.value)}
+                    value={imagePrompt}
+                    onChange={(e) => setImagePrompt(e.target.value)}
                     placeholder="Descreva a imagem que deseja gerar..."
                     className="bg-background/50 border-border"
                   />
                   <Button 
                     onClick={generateCustomImage}
-                    disabled={isGeneratingImage}
+                    disabled={isGeneratingImage || !apiKey.trim()}
                     size="icon"
                     className="bg-gradient-primary hover:opacity-90"
                   >
@@ -164,7 +209,7 @@ export default function AdCreator() {
             <h3 className="text-xl font-semibold text-foreground">Preview do Anúncio</h3>
             <AdPreview 
               topText={topText}
-              imageUrl={customImageUrl || heroImage}
+              imageUrl={generatedImageUrl || heroImage}
               bottomText={bottomText}
             />
           </div>
