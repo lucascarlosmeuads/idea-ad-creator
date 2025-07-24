@@ -182,4 +182,20 @@ export class TextProviderFactory {
     const provider = this.providers.get(providerType);
     return provider ? provider.isConfigured() : false;
   }
+
+  public static hasAnyTextProviderConfigured(): boolean {
+    return Array.from(this.providers.values()).some(provider => provider.isConfigured());
+  }
+
+  public static getConfiguredProviders(): Array<{
+    id: TextProvider;
+    name: string;
+  }> {
+    return Array.from(this.providers.entries())
+      .filter(([, provider]) => provider.isConfigured())
+      .map(([id, provider]) => ({
+        id,
+        name: provider.getProviderName(),
+      }));
+  }
 }

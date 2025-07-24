@@ -5,12 +5,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Download, Wand2, FileText, Brain, Zap, ImageIcon, Settings, Mic } from "lucide-react";
+import { Loader2, Download, Wand2, FileText, Brain, Zap, ImageIcon, Settings, Mic, AlertTriangle, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import heroImage from "@/assets/idea-mining-hero.jpg";
 import { OpenAIService, type BusinessAnalysis, type AdPromptElements, type MultipleAdOptions } from "@/services/openai";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ImageProviderFactory, type UnifiedImageParams } from "@/services/imageProviderFactory";
 import { TextProviderFactory } from "@/services/textProviderFactory";
 import { ApiConfigManager } from "@/services/apiConfig";
@@ -395,7 +396,7 @@ export default function AdCreator() {
                 <div className="flex gap-3">
                   <Button 
                     onClick={analyzeDocument} 
-                    disabled={isAnalyzing || !documentText.trim() || !apiManager.hasApiKey('openai')}
+                    disabled={isAnalyzing || !documentText.trim() || !TextProviderFactory.hasAnyTextProviderConfigured()}
                     className="flex-1"
                     variant="outline"
                   >
@@ -434,12 +435,24 @@ export default function AdCreator() {
                   )}
                 </div>
                 
-                {!apiManager.hasApiKey('openai') && (
-                  <div className="bg-orange-50 dark:bg-orange-950/20 p-3 rounded-lg border border-orange-200 dark:border-orange-800">
-                    <p className="text-sm text-orange-700 dark:text-orange-300">
-                      ⚠️ Configure sua chave API OpenAI na aba "APIs" para continuar
-                    </p>
-                  </div>
+                {!TextProviderFactory.hasAnyTextProviderConfigured() && (
+                  <Alert>
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Configuração necessária</AlertTitle>
+                    <AlertDescription>
+                      Configure pelo menos um provedor de texto (OpenAI, Claude ou Gemini) na aba "APIs" para usar as funcionalidades de análise.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                {TextProviderFactory.hasAnyTextProviderConfigured() && (
+                  <Alert>
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertTitle>Provedor configurado</AlertTitle>
+                    <AlertDescription>
+                      Usando: {TextProviderFactory.getConfiguredProviders().map(p => p.name).join(', ')} para análise de texto
+                    </AlertDescription>
+                  </Alert>
                 )}
               </CardContent>
             </Card>
