@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ImageProviderFactory, type UnifiedImageParams } from "@/services/imageProviderFactory";
+import { VideoProviderFactory, type UnifiedVideoParams } from "@/services/videoProviderFactory";
 import { TextProviderFactory } from "@/services/textProviderFactory";
 import { ApiConfigManager } from "@/services/apiConfig";
 import ApiConfigPanel from "./ApiConfigPanel";
@@ -25,6 +26,22 @@ interface GeneratedImageData {
   topPhrase: string;
   bottomCTA: string;
   imageDescription: string;
+  timestamp: Date;
+}
+
+interface GeneratedVideoData {
+  id: string;
+  url: string;
+  script: string;
+  timestamp: Date;
+  imageUrl?: string; // Associated image if generated together
+}
+
+interface GeneratedContentData {
+  id: string;
+  type: 'image' | 'video' | 'both';
+  image?: GeneratedImageData;
+  video?: GeneratedVideoData;
   timestamp: Date;
 }
 
@@ -138,9 +155,15 @@ export default function AdCreator() {
   const [selectedImageDescription, setSelectedImageDescription] = useState<string>("");
   const [selectedBottomCTA, setSelectedBottomCTA] = useState<string>("");
   
-  // Image gallery state
+  // Content gallery state (images + videos)
   const [generatedImages, setGeneratedImages] = useState<GeneratedImageData[]>([]);
+  const [generatedVideos, setGeneratedVideos] = useState<GeneratedVideoData[]>([]);
+  const [generatedContent, setGeneratedContent] = useState<GeneratedContentData[]>([]);
   const [activeImageId, setActiveImageId] = useState<string | null>(null);
+  
+  // Video generation state
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState<{ image: boolean; video: boolean }>({ image: false, video: false });
   
   // Input mode state (text vs audio)
   const [inputMode, setInputMode] = useState<'text' | 'audio'>('text');
@@ -306,6 +329,116 @@ export default function AdCreator() {
       toast.error("Erro ao gerar anúncio. Tente novamente.");
     } finally {
       setIsGeneratingImage(false);
+    }
+  };
+
+  const generateImageAndVideo = async () => {
+    if (!selectedTopPhrase || !selectedImageDescription || !selectedBottomCTA) {
+      toast.error("Selecione uma opção de cada categoria");
+      return;
+    }
+
+    setIsGeneratingImage(true);
+    setIsGeneratingVideo(true);
+    setGenerationProgress({ image: false, video: false });
+    
+    try {
+      // Update the manual fields with selected options
+      setTopText(selectedTopPhrase);
+      setBottomText(selectedBottomCTA);
+      setImagePrompt(selectedImageDescription);
+      
+      // Generate script for video
+      const videoScript = `${selectedTopPhrase}. ${selectedBottomCTA}. ${selectedImageDescription}`;
+      
+      // Start both generations in parallel
+      const imagePromise = (async () => {
+        try {
+          const completePrompt = `${selectedImageDescription}. Include the text "${selectedTopPhrase}" prominently at the top of the image in large, bold letters, and "${selectedBottomCTA}" at the bottom in smaller but clear text. Design for Instagram post format (1024x1024), optimized for Meta Ads with high visual impact and professional typography. Text must be in Portuguese and clearly legible.`;
+          
+          const imageParams: UnifiedImageParams = {
+            prompt: completePrompt,
+            mainText: selectedTopPhrase,
+            subText: selectedBottomCTA,
+            textPosition: "center",
+            size: "1024x1024",
+            quality: "hd",
+            style: "vivid"
+          };
+          
+          const imageResult = await ImageProviderFactory.generateImage(imageParams);
+          setGenerationProgress(prev => ({ ...prev, image: true }));
+          return imageResult;
+        } catch (error) {
+          setGenerationProgress(prev => ({ ...prev, image: true }));
+          throw error;
+        }
+      })();
+      
+      const videoPromise = (async () => {
+        try {
+          const videoParams: UnifiedVideoParams = {
+            script: videoScript,
+            avatar: "d5d7bcf8fd334bdba1b34bd67a2fb652_public",
+            voice: undefined, // Let HeyGen choose automatically
+            format: "horizontal"
+          };
+          
+          const videoResult = await VideoProviderFactory.generateVideo(videoParams);
+          setGenerationProgress(prev => ({ ...prev, video: true }));
+          return videoResult;
+        } catch (error) {
+          setGenerationProgress(prev => ({ ...prev, video: true }));
+          throw error;
+        }
+      })();
+      
+      // Wait for both to complete
+      const [imageResult, videoResult] = await Promise.all([imagePromise, videoPromise]);
+      
+      // Create content data
+      const contentId = Date.now().toString();
+      
+      const newImageData: GeneratedImageData = {
+        id: contentId + "_img",
+        url: imageResult.url,
+        topPhrase: selectedTopPhrase,
+        bottomCTA: selectedBottomCTA,
+        imageDescription: selectedImageDescription,
+        timestamp: new Date()
+      };
+      
+      const newVideoData: GeneratedVideoData = {
+        id: contentId + "_vid",
+        url: videoResult.video_url,
+        script: videoScript,
+        timestamp: new Date(),
+        imageUrl: imageResult.url
+      };
+      
+      const newContentData: GeneratedContentData = {
+        id: contentId,
+        type: 'both',
+        image: newImageData,
+        video: newVideoData,
+        timestamp: new Date()
+      };
+      
+      // Add to galleries
+      setGeneratedImages(prev => [...prev, newImageData]);
+      setGeneratedVideos(prev => [...prev, newVideoData]);
+      setGeneratedContent(prev => [...prev, newContentData]);
+      setActiveImageId(newImageData.id);
+      setGeneratedImageUrl(imageResult.url);
+      
+      toast.success("🎉 Imagem e vídeo gerados com sucesso!");
+    } catch (error) {
+      console.error("Erro ao gerar conteúdo:", error);
+      toast.error("Erro ao gerar conteúdo. Verifique as configurações das APIs.");
+    } finally {
+      setIsGeneratingImage(false);
+      setIsGeneratingVideo(false);
+      setGenerationProgress({ image: false, video: false });
     }
   };
 
@@ -628,7 +761,7 @@ export default function AdCreator() {
                   </div>
                 </div>
 
-                {/* Generate Button */}
+                {/* Generate Buttons */}
                 {selectedTopPhrase && selectedImageDescription && selectedBottomCTA && (
                   <div className="pt-4 border-t border-border">
                     <div className="bg-secondary/20 p-4 rounded-lg mb-4">
@@ -640,23 +773,80 @@ export default function AdCreator() {
                       </div>
                     </div>
                     
-                    <Button 
-                      onClick={generateImageFromSelection} 
-                      disabled={isGeneratingImage}
-                      className="w-full bg-gradient-primary hover:opacity-90 shadow-glow"
-                    >
-                      {isGeneratingImage ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Gerando Anúncio Instagram...
-                        </>
-                      ) : (
-                        <>
-                          <Zap className="mr-2 h-4 w-4" />
-                          🎯 Gerar Anúncio com Seleção (1024x1024)
-                        </>
+                    {/* Progress Indicators */}
+                    {(isGeneratingImage || isGeneratingVideo) && (
+                      <div className="bg-primary/10 p-4 rounded-lg mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium">Progresso:</span>
+                          <span className="text-xs text-muted-foreground">
+                            {generationProgress.image && generationProgress.video ? 'Concluído!' : 'Gerando...'}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-4 h-4 rounded-full ${generationProgress.image ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                            <span className="text-sm">Imagem {generationProgress.image ? '✅' : '⏳'}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className={`w-4 h-4 rounded-full ${generationProgress.video ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                            <span className="text-sm">Vídeo {generationProgress.video ? '✅' : '⏳'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="grid gap-3">
+                      {/* Image Only Button */}
+                      <Button 
+                        onClick={generateImageFromSelection} 
+                        disabled={isGeneratingImage || isGeneratingVideo}
+                        variant="outline"
+                        className="w-full"
+                      >
+                        {isGeneratingImage && !isGeneratingVideo ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Gerando Imagem...
+                          </>
+                        ) : (
+                          <>
+                            <ImageIcon className="mr-2 h-4 w-4" />
+                            📸 Apenas Imagem (1024x1024)
+                          </>
+                        )}
+                      </Button>
+                      
+                      {/* Image + Video Button */}
+                      {VideoProviderFactory.hasAnyVideoProviderConfigured() && (
+                        <Button 
+                          onClick={generateImageAndVideo} 
+                          disabled={isGeneratingImage || isGeneratingVideo}
+                          className="w-full bg-gradient-primary hover:opacity-90 shadow-glow"
+                        >
+                          {(isGeneratingImage && isGeneratingVideo) ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Gerando Imagem + Vídeo...
+                            </>
+                          ) : (
+                            <>
+                              <Video className="mr-2 h-4 w-4" />
+                              🎬 Gerar Imagem + Vídeo
+                            </>
+                          )}
+                        </Button>
                       )}
-                    </Button>
+                      
+                      {!VideoProviderFactory.hasAnyVideoProviderConfigured() && (
+                        <Alert>
+                          <AlertTriangle className="h-4 w-4" />
+                          <AlertTitle>Configure um provedor de vídeo</AlertTitle>
+                          <AlertDescription>
+                            Para gerar vídeos, configure HeyGen ou Runway na aba "APIs".
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </div>
                   </div>
                 )}
               </CardContent>
