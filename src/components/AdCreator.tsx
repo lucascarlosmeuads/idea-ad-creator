@@ -213,9 +213,14 @@ export default function AdCreator() {
       return;
     }
 
-    // Check if both OpenAI and Runway are configured
+    console.log("[DEBUG] Iniciando geração de múltiplas opções");
+    console.log("[DEBUG] Business Analysis:", businessAnalysis);
+
+    // Test API connections first
     const hasOpenAI = !!apiManager.getApiKey('openai');
     const hasRunway = !!apiManager.getApiKey('runway');
+    
+    console.log("[DEBUG] API Keys Status:", { hasOpenAI, hasRunway });
     
     if (!hasOpenAI) {
       toast.error("⚠️ Configure a API do OpenAI primeiro para gerar anúncios");
@@ -224,6 +229,24 @@ export default function AdCreator() {
     
     if (!hasRunway) {
       toast.error("⚠️ Configure a API do Runway primeiro para gerar imagens e vídeos");
+      return;
+    }
+
+    // Test Runway connection
+    try {
+      const RunwayService = (await import("@/services/runway")).RunwayService;
+      const runwayService = new RunwayService(apiManager.getApiKey('runway')!);
+      const isRunwayConnected = await runwayService.testConnection();
+      
+      console.log("[DEBUG] Runway connection test:", isRunwayConnected);
+      
+      if (!isRunwayConnected) {
+        toast.error("⚠️ Falha na conexão com Runway ML. Verifique sua chave API.");
+        return;
+      }
+    } catch (error) {
+      console.error("[DEBUG] Erro ao testar Runway:", error);
+      toast.error("⚠️ Erro ao validar API do Runway ML");
       return;
     }
 
@@ -237,14 +260,34 @@ export default function AdCreator() {
       apiManager.setImageProvider('runway');
       apiManager.setVideoProvider('runway');
       
-      // Generate 5-8 different ad combinations
+      console.log("[DEBUG] Chamando OpenAI para gerar múltiplas opções...");
+      
+      // Generate 5-8 different ad combinations with retry
       const openaiService = new OpenAIService(apiManager.getApiKey('openai')!);
-      const adCombinations = await openaiService.generateMultipleAdOptions(businessAnalysis);
+      let adCombinations;
+      
+      try {
+        adCombinations = await openaiService.generateMultipleAdOptions(businessAnalysis);
+        console.log("[DEBUG] OpenAI resposta:", adCombinations);
+      } catch (openaiError) {
+        console.error("[DEBUG] Erro OpenAI:", openaiError);
+        toast.error("Erro ao gerar conteúdo com OpenAI. Verifique sua chave API.");
+        return;
+      }
+      
+      // Validate OpenAI response
+      if (!adCombinations || !adCombinations.topPhrases || adCombinations.topPhrases.length === 0) {
+        console.error("[DEBUG] Resposta OpenAI inválida:", adCombinations);
+        toast.error("Resposta inválida do OpenAI. Tente novamente.");
+        return;
+      }
       
       setCompleteAdsProgress(25);
       
       const completeAds: GeneratedImageData[] = [];
-      const totalCombinations = Math.min(6, adCombinations.topPhrases.length); // Generate 6 complete ads
+      const totalCombinations = Math.min(3, adCombinations.topPhrases.length); // Start with just 3 ads
+      
+      console.log("[DEBUG] Gerando", totalCombinations, "anúncios completos");
       
       // Generate each complete ad (image + animation)
       for (let i = 0; i < totalCombinations; i++) {
@@ -252,13 +295,38 @@ export default function AdCreator() {
         const imageDesc = adCombinations.imageDescriptions[i % adCombinations.imageDescriptions.length];
         const bottomCTA = adCombinations.bottomCTAs[i % adCombinations.bottomCTAs.length];
         
+        console.log(`[DEBUG] Gerando anúncio ${i + 1}:`, { topPhrase, imageDesc, bottomCTA });
+        
         try {
-          // Generate image
+          // Generate image with retry
+          console.log(`[DEBUG] Gerando imagem ${i + 1}...`);
+          
           const imageParams: UnifiedImageParams = {
             prompt: imageDesc
           };
           
-          const imageResult = await ImageProviderFactory.generateImage(imageParams, 'runway');
+          let imageResult;
+          let retryCount = 0;
+          const maxRetries = 2;
+          
+          while (retryCount <= maxRetries) {
+            try {
+              imageResult = await ImageProviderFactory.generateImage(imageParams, 'runway');
+              console.log(`[DEBUG] Imagem ${i + 1} gerada:`, imageResult);
+              break;
+            } catch (imageError) {
+              console.error(`[DEBUG] Erro na tentativa ${retryCount + 1} da imagem ${i + 1}:`, imageError);
+              retryCount++;
+              if (retryCount > maxRetries) {
+                throw imageError;
+              }
+              await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
+            }
+          }
+          
+          if (!imageResult) {
+            throw new Error("Falha ao gerar imagem após múltiplas tentativas");
+          }
           
           const adData: GeneratedImageData = {
             id: crypto.randomUUID(),
@@ -274,8 +342,12 @@ export default function AdCreator() {
           completeAds.push(adData);
           setGeneratedImages(prev => [...prev, adData]);
           
-          // Animate the image automatically
+          console.log(`[DEBUG] Anúncio ${i + 1} salvo:`, adData);
+          
+          // Try to animate the image (optional)
           try {
+            console.log(`[DEBUG] Gerando vídeo para anúncio ${i + 1}...`);
+            
             const videoParams: UnifiedVideoParams = {
               script: `${topPhrase}. ${imageDesc}. ${bottomCTA}`,
               image_url: imageResult.url,
@@ -283,6 +355,7 @@ export default function AdCreator() {
             };
             
             const videoResult = await VideoProviderFactory.generateVideo(videoParams, 'runway');
+            console.log(`[DEBUG] Vídeo ${i + 1} gerado:`, videoResult);
             
             // Update the ad with video
             const completeAd = { ...adData, videoUrl: videoResult.video_url, isComplete: true };
@@ -290,32 +363,41 @@ export default function AdCreator() {
               prev.map(img => img.id === adData.id ? completeAd : img)
             );
             
+            console.log(`[DEBUG] Anúncio ${i + 1} completo com vídeo`);
+            
           } catch (videoError) {
-            console.warn(`Erro ao gerar vídeo para anúncio ${i + 1}:`, videoError);
+            console.warn(`[DEBUG] Erro ao gerar vídeo para anúncio ${i + 1}:`, videoError);
             // Keep the ad even if video generation fails
+            toast.info(`Anúncio ${i + 1} criado (sem animação)`);
           }
           
           setCompleteAdsProgress((i + 1) / totalCombinations * 100);
           
         } catch (error) {
-          console.error(`Erro ao gerar anúncio ${i + 1}:`, error);
-          toast.error(`Erro ao gerar anúncio ${i + 1}`);
+          console.error(`[DEBUG] Erro crítico ao gerar anúncio ${i + 1}:`, error);
+          toast.error(`Erro ao gerar anúncio ${i + 1}: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+          // Continue with next ad instead of failing completely
         }
       }
       
       toast.dismiss();
-      toast.success(`🎉 ${completeAds.length} anúncios completos gerados com sucesso!`);
-      setShowAnalysis(false);
       
-      // Set the last generated ad as active
       if (completeAds.length > 0) {
+        toast.success(`🎉 ${completeAds.length} anúncios completos gerados com sucesso!`);
+        setShowAnalysis(false);
+        
+        // Set the last generated ad as active
         setActiveImageId(completeAds[completeAds.length - 1].id);
+      } else {
+        toast.error("Nenhum anúncio foi gerado com sucesso. Verifique suas configurações de API.");
       }
       
+      console.log(`[DEBUG] Processo finalizado. ${completeAds.length} anúncios gerados`);
+      
     } catch (error) {
-      console.error("Erro ao gerar anúncios completos:", error);
+      console.error("[DEBUG] Erro geral na geração:", error);
       toast.dismiss();
-      toast.error("Erro ao gerar anúncios completos. Verifique suas configurações de API.");
+      toast.error(`Erro geral: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     } finally {
       setIsGeneratingCompleteAds(false);
       setCompleteAdsProgress(0);
