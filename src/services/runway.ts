@@ -16,9 +16,11 @@ export interface RunwayGeneratedImage {
 }
 
 export interface RunwayVideoParams {
-  text_prompt: string;
+  text_prompt?: string;
+  image_url?: string;
   seed?: number;
   duration?: number;
+  motion_prompt?: string;
 }
 
 export interface RunwayVideoResult {
@@ -128,19 +130,30 @@ export class RunwayService {
 
   async generateVideo(params: RunwayVideoParams): Promise<RunwayVideoResult> {
     try {
-      const response = await fetch(`${this.baseUrl}/text_to_video`, {
+      const endpoint = params.image_url ? '/image_to_video' : '/text_to_video';
+      const body: any = {
+        model: 'gen3a_turbo',
+        seed: params.seed || Math.floor(Math.random() * 1000000),
+        duration: params.duration || 5,
+      };
+
+      if (params.image_url) {
+        body.image_url = params.image_url;
+        if (params.motion_prompt) {
+          body.prompt = params.motion_prompt;
+        }
+      } else {
+        body.prompt = params.text_prompt;
+      }
+
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
           'X-Runway-Version': '2024-11-06',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          prompt: params.text_prompt,
-          model: 'gen3a_turbo',
-          seed: params.seed || Math.floor(Math.random() * 1000000),
-          duration: params.duration || 5,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -170,7 +183,10 @@ export class RunwayService {
       
     } catch (error) {
       console.error('Erro na geração de vídeo Runway:', error);
-      throw new Error('Falha na geração de vídeo Runway. Verifique sua chave API.');
+      const errorMessage = params.image_url 
+        ? 'Falha na animação da imagem Runway. Verifique sua chave API.'
+        : 'Falha na geração de vídeo Runway. Verifique sua chave API.';
+      throw new Error(errorMessage);
     }
   }
 
@@ -207,6 +223,14 @@ export class RunwayService {
     }
 
     throw new Error('Timeout na geração do vídeo Runway. Tente novamente.');
+  }
+
+  async generateVideoFromImage(imageUrl: string, motionPrompt?: string, duration?: number): Promise<RunwayVideoResult> {
+    return this.generateVideo({
+      image_url: imageUrl,
+      motion_prompt: motionPrompt,
+      duration: duration || 5,
+    });
   }
 
   async testConnection(): Promise<boolean> {

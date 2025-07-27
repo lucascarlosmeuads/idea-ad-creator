@@ -19,6 +19,7 @@ import { ApiConfigManager } from "@/services/apiConfig";
 import ApiConfigPanel from "./ApiConfigPanel";
 import AudioRecorderPanel from "./AudioRecorderPanel";
 import VideoCreator from "./VideoCreator";
+import ImageAnimationDialog from "./ImageAnimationDialog";
 
 interface GeneratedImageData {
   id: string;
@@ -50,9 +51,10 @@ interface ImageGalleryProps {
   activeImageId: string | null;
   onImageSelect: (imageId: string) => void;
   onDownload: (imageUrl: string, index: number) => void;
+  onAnimateImage: (image: GeneratedImageData) => void;
 }
 
-const ImageGallery = ({ images, activeImageId, onImageSelect, onDownload }: ImageGalleryProps) => {
+const ImageGallery = ({ images, activeImageId, onImageSelect, onDownload, onAnimateImage }: ImageGalleryProps) => {
   if (images.length === 0) return null;
 
   const activeImage = images.find(img => img.id === activeImageId) || images[images.length - 1];
@@ -87,14 +89,23 @@ const ImageGallery = ({ images, activeImageId, onImageSelect, onDownload }: Imag
             </p>
           </div>
           
-          {/* Download Button */}
-          <Button 
-            onClick={() => onDownload(activeImage.url, images.findIndex(img => img.id === activeImage.id))}
-            className="w-full bg-gradient-primary hover:opacity-90 transition-opacity shadow-glow"
-          >
-            <Download className="mr-2 h-4 w-4" />
-            📥 Baixar Anúncio
-          </Button>
+          {/* Action Buttons */}
+          <div className="grid grid-cols-2 gap-2">
+            <Button 
+              onClick={() => onAnimateImage(activeImage)}
+              variant="outline"
+              className="border-primary/20 hover:border-primary hover:bg-primary/10"
+            >
+              🎬 Animar
+            </Button>
+            <Button 
+              onClick={() => onDownload(activeImage.url, images.findIndex(img => img.id === activeImage.id))}
+              className="bg-gradient-primary hover:opacity-90 transition-opacity shadow-glow"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              📥 Baixar
+            </Button>
+          </div>
         </div>
 
         {/* Thumbnail History */}
@@ -164,6 +175,11 @@ export default function AdCreator() {
   // Video generation state
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [generationProgress, setGenerationProgress] = useState<{ image: boolean; video: boolean }>({ image: false, video: false });
+  
+  // Image animation state
+  const [showAnimationDialog, setShowAnimationDialog] = useState(false);
+  const [imageToAnimate, setImageToAnimate] = useState<GeneratedImageData | null>(null);
+  const [isAnimatingImage, setIsAnimatingImage] = useState(false);
   
   // Input mode state (text vs audio)
   const [inputMode, setInputMode] = useState<'text' | 'audio'>('text');
@@ -439,6 +455,48 @@ export default function AdCreator() {
       setIsGeneratingImage(false);
       setIsGeneratingVideo(false);
       setGenerationProgress({ image: false, video: false });
+    }
+  };
+
+  const handleAnimateImage = (image: GeneratedImageData) => {
+    setImageToAnimate(image);
+    setShowAnimationDialog(true);
+  };
+
+  const animateImage = async (motionPrompt: string, duration: number) => {
+    if (!imageToAnimate) return;
+
+    setIsAnimatingImage(true);
+    setShowAnimationDialog(false);
+    
+    try {
+      toast.info("🎬 Animando imagem...", {
+        description: "Isso pode levar alguns minutos com Runway ML"
+      });
+
+      const videoResult = await VideoProviderFactory.generateVideo({
+        image_url: imageToAnimate.url,
+        motion_prompt: motionPrompt,
+        duration: duration
+      }, 'runway');
+
+      const newVideoData: GeneratedVideoData = {
+        id: Date.now().toString(),
+        url: videoResult.video_url,
+        script: `Animação: ${motionPrompt}`,
+        timestamp: new Date(),
+        imageUrl: imageToAnimate.url
+      };
+
+      setGeneratedVideos(prev => [...prev, newVideoData]);
+      toast.success("🎉 Imagem animada com sucesso!");
+      
+    } catch (error) {
+      console.error('Erro na animação da imagem:', error);
+      toast.error(error instanceof Error ? error.message : 'Erro na animação da imagem');
+    } finally {
+      setIsAnimatingImage(false);
+      setImageToAnimate(null);
     }
   };
 
@@ -859,7 +917,17 @@ export default function AdCreator() {
             activeImageId={activeImageId}
             onImageSelect={handleImageSelect}
             onDownload={downloadAd}
-          />
+            onAnimateImage={handleAnimateImage}
+        />
+
+        {/* Image Animation Dialog */}
+        <ImageAnimationDialog
+          isOpen={showAnimationDialog}
+          onClose={() => setShowAnimationDialog(false)}
+          image={imageToAnimate}
+          onAnimate={animateImage}
+          isAnimating={isAnimatingImage}
+        />
         </div>
       </div>
     </div>

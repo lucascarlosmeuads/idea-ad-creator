@@ -6,7 +6,9 @@ import { RunwayService, type RunwayVideoParams } from './runway';
 export type VideoProvider = 'heygen' | 'synthesia' | 'runway' | 'luma' | 'pika';
 
 export interface UnifiedVideoParams {
-  script: string;
+  script?: string;
+  image_url?: string;
+  motion_prompt?: string;
   avatar?: string;
   voice?: string;
   background?: string;
@@ -115,10 +117,16 @@ class RunwayVideoProvider implements VideoProviderInterface {
     const runwayService = new RunwayService(apiKey);
     
     const runwayParams: RunwayVideoParams = {
-      text_prompt: params.script,
       duration: params.duration || 5,
       seed: Math.floor(Math.random() * 1000000),
     };
+
+    if (params.image_url) {
+      runwayParams.image_url = params.image_url;
+      runwayParams.motion_prompt = params.motion_prompt;
+    } else {
+      runwayParams.text_prompt = params.script;
+    }
 
     const result = await runwayService.generateVideo(runwayParams);
     
