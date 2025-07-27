@@ -16,7 +16,7 @@ import { ImageProviderFactory, type UnifiedImageParams } from "@/services/imageP
 import { VideoProviderFactory, type UnifiedVideoParams } from "@/services/videoProviderFactory";
 import { TextProviderFactory } from "@/services/textProviderFactory";
 import { ApiConfigManager } from "@/services/apiConfig";
-import ApiConfigPanel from "./ApiConfigPanel";
+import SimpleApiConfig from "./SimpleApiConfig";
 import AudioRecorderPanel from "./AudioRecorderPanel";
 import VideoCreator from "./VideoCreator";
 import ImageAnimationDialog from "./ImageAnimationDialog";
@@ -162,12 +162,9 @@ export default function AdCreator() {
   const [generatedPrompt, setGeneratedPrompt] = useState<AdPromptElements | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
   
-  // Multiple options state
-  const [multipleOptions, setMultipleOptions] = useState<MultipleAdOptions | null>(null);
-  const [isGeneratingOptions, setIsGeneratingOptions] = useState(false);
-  const [selectedTopPhrase, setSelectedTopPhrase] = useState<string>("");
-  const [selectedImageDescription, setSelectedImageDescription] = useState<string>("");
-  const [selectedBottomCTA, setSelectedBottomCTA] = useState<string>("");
+  // Multiple options state - now fully automated
+  const [isGeneratingCompleteAds, setIsGeneratingCompleteAds] = useState(false);
+  const [completeAdsProgress, setCompleteAdsProgress] = useState<number>(0);
   
   // Content gallery state (images + videos)
   const [generatedImages, setGeneratedImages] = useState<GeneratedImageData[]>([]);
@@ -210,329 +207,118 @@ export default function AdCreator() {
     }
   };
 
-  const generateCompleteAd = async () => {
-    if (!businessAnalysis) {
-      toast.error("Primeiro analise um documento");
-      return;
-    }
-
-    setIsGeneratingImage(true);
-    try {
-      // Generate the ad prompt elements using TextProviderFactory
-      const promptElements = await TextProviderFactory.generateAdPrompt(businessAnalysis);
-      setGeneratedPrompt(promptElements);
-      
-      // Auto-fill the form fields
-      setTopText(promptElements.topPhrase);
-      setBottomText(promptElements.bottomCTA);
-      setImagePrompt(promptElements.imageDescription);
-      setIncludeTextInImage(true);
-      
-      // Generate the image using the factory
-      const imageParams: UnifiedImageParams = {
-        prompt: promptElements.completePrompt,
-        mainText: promptElements.topPhrase,
-        subText: promptElements.bottomCTA,
-        textPosition: textPosition as any,
-        size: "1024x1024",
-        quality: "hd",
-        style: "vivid"
-      };
-      
-      const imageResult = await ImageProviderFactory.generateImage(imageParams);
-      setGeneratedImageUrl(imageResult.url);
-      toast.success("Anúncio completo gerado com sucesso!");
-    } catch (error) {
-      console.error("Erro ao gerar anúncio completo:", error);
-      toast.error("Erro ao gerar anúncio. Tente novamente.");
-    } finally {
-      setIsGeneratingImage(false);
-    }
-  };
-
-  const generateCustomImage = async () => {
-    if (!imagePrompt.trim()) {
-      toast.error("Digite uma descrição para a imagem");
-      return;
-    }
-
-    setIsGeneratingImage(true);
-    try {
-      const imageParams: UnifiedImageParams = {
-        prompt: imagePrompt,
-        size: "1024x1024",
-        quality: "hd",
-        style: "vivid",
-        textPosition: textPosition as any,
-        mainText: includeTextInImage ? topText : undefined,
-        subText: includeTextInImage ? (bottomText.length > 100 ? bottomText.slice(0, 100) + "..." : bottomText) : undefined,
-      };
-      
-      const result = await ImageProviderFactory.generateImage(imageParams);
-      setGeneratedImageUrl(result.url);
-      toast.success("Imagem gerada com sucesso!");
-    } catch (error) {
-      console.error("Erro ao gerar imagem:", error);
-      toast.error("Erro ao gerar imagem. Verifique as configurações da API.");
-    } finally {
-      setIsGeneratingImage(false);
-    }
-  };
-
-  // Function to generate multiple ad variations automatically
   const generateMultipleOptions = async () => {
     if (!businessAnalysis) {
-      toast.error('Primeiro faça a análise do documento');
+      toast.error("Analise um documento primeiro para gerar múltiplas opções");
       return;
     }
 
-    try {
-      setIsGeneratingOptions(true);
-      
-      // Verificar se Runway está configurado para imagem e vídeo
-      const runwayApiKey = ApiConfigManager.getInstance().getApiKey('runway');
-      if (!runwayApiKey) {
-        toast.error('Configure a chave API do Runway para gerar anúncios completos');
-        return;
-      }
-      
-      // Forçar Runway para ambos os provedores
-      console.log('[DEBUG] Forcing Runway for both image and video generation');
-      ApiConfigManager.getInstance().setImageProvider('runway');
-      ApiConfigManager.getInstance().setVideoProvider('runway');
-      
-      const result = await TextProviderFactory.generateMultipleAdOptions(businessAnalysis);
-      setMultipleOptions(result);
-      
-      // Auto-generate 5-10 complete ads
-      console.log('[DEBUG] Starting auto-generation of complete ads with Runway');
-      const completeAds: GeneratedImageData[] = [];
-      const totalAds = Math.min(8, result.topPhrases.length); // Limit to 8 ads max
-      
-      // Generate all ads in parallel for speed
-      const adPromises = Array.from({ length: totalAds }, async (_, i) => {
-        const topPhrase = result.topPhrases[i % result.topPhrases.length];
-        const imageDescription = result.imageDescriptions[i % result.imageDescriptions.length];
-        const bottomCTA = result.bottomCTAs[i % result.bottomCTAs.length];
-        
-        try {
-          console.log(`[DEBUG] Generating ad ${i + 1}: Using Runway for image and video`);
-          
-          // Step 1: Generate image with Runway
-          const imageResult = await ImageProviderFactory.generateImage({
-            prompt: imageDescription,
-            style: 'vivid'
-          }, 'runway');
-          
-          // Step 2: Animate the generated image with Runway
-          const videoResult = await VideoProviderFactory.generateVideo({
-            image_url: imageResult.url,
-            motion_prompt: `Subtle animation bringing life to this image: ${imageDescription.slice(0, 100)}`,
-            duration: 5
-          }, 'runway');
-          
-          return {
-            id: crypto.randomUUID(),
-            url: imageResult.url,
-            prompt: imageDescription,
-            topPhrase,
-            bottomCTA,
-            imageDescription,
-            timestamp: new Date(),
-            videoUrl: videoResult.video_url,
-            isComplete: true
-          };
-          
-        } catch (error) {
-          console.error(`Error generating ad ${i + 1}:`, error);
-          return null; // Return null for failed ads
-        }
-      });
-      
-      // Wait for all ads to complete
-      const results = await Promise.allSettled(adPromises);
-      const successfulAds = results
-        .filter((result) => 
-          result.status === 'fulfilled' && result.value !== null
-        )
-        .map(result => (result as PromiseFulfilledResult<GeneratedImageData>).value);
-      
-      setGeneratedImages(successfulAds);
-      
-      if (successfulAds.length > 0) {
-        toast.success(`${successfulAds.length} anúncios completos gerados com Runway!`);
-      } else {
-        toast.error('Falha ao gerar anúncios. Verifique sua chave API do Runway.');
-      }
-      
-    } catch (error) {
-      console.error('Erro ao gerar múltiplas opções:', error);
-      toast.error('Falha ao gerar múltiplas opções. Verifique sua configuração do Runway.');
-    } finally {
-      setIsGeneratingOptions(false);
+    // Check if both OpenAI and Runway are configured
+    const hasOpenAI = !!apiManager.getApiKey('openai');
+    const hasRunway = !!apiManager.getApiKey('runway');
+    
+    if (!hasOpenAI) {
+      toast.error("⚠️ Configure a API do OpenAI primeiro para gerar anúncios");
+      return;
     }
-  };
-
-  const generateImageFromSelection = async () => {
-    if (!selectedTopPhrase || !selectedImageDescription || !selectedBottomCTA) {
-      toast.error("Selecione uma opção de cada categoria");
+    
+    if (!hasRunway) {
+      toast.error("⚠️ Configure a API do Runway primeiro para gerar imagens e vídeos");
       return;
     }
 
-    setIsGeneratingImage(true);
-    try {
-      // Update the manual fields with selected options
-      setTopText(selectedTopPhrase);
-      setBottomText(selectedBottomCTA);
-      setImagePrompt(selectedImageDescription);
-      
-      // Create complete prompt for Instagram format
-      const completePrompt = `${selectedImageDescription}. Include the text "${selectedTopPhrase}" prominently at the top of the image in large, bold letters, and "${selectedBottomCTA}" at the bottom in smaller but clear text. Design for Instagram post format (1024x1024), optimized for Meta Ads with high visual impact and professional typography. Text must be in Portuguese and clearly legible.`;
-      
-      // Generate the image using factory
-      const imageParams: UnifiedImageParams = {
-        prompt: completePrompt,
-        mainText: selectedTopPhrase,
-        subText: selectedBottomCTA,
-        textPosition: "center",
-        size: "1024x1024",
-        quality: "hd",
-        style: "vivid"
-      };
-      
-      const imageResult = await ImageProviderFactory.generateImage(imageParams);
-      
-      // Create new image data
-      const newImageData: GeneratedImageData = {
-        id: Date.now().toString(),
-        url: imageResult.url,
-        topPhrase: selectedTopPhrase,
-        bottomCTA: selectedBottomCTA,
-        imageDescription: selectedImageDescription,
-        timestamp: new Date()
-      };
-      
-      // Add to gallery and set as active
-      setGeneratedImages(prev => [...prev, newImageData]);
-      setActiveImageId(newImageData.id);
-      setGeneratedImageUrl(imageResult.url);
-      
-      toast.success("Anúncio gerado com as opções selecionadas!");
-    } catch (error) {
-      console.error("Erro ao gerar imagem:", error);
-      toast.error("Erro ao gerar anúncio. Tente novamente.");
-    } finally {
-      setIsGeneratingImage(false);
-    }
-  };
-
-  const generateImageAndVideo = async () => {
-    if (!selectedTopPhrase || !selectedImageDescription || !selectedBottomCTA) {
-      toast.error("Selecione uma opção de cada categoria");
-      return;
-    }
-
-    setIsGeneratingImage(true);
-    setIsGeneratingVideo(true);
-    setGenerationProgress({ image: false, video: false });
+    setIsGeneratingCompleteAds(true);
+    setCompleteAdsProgress(0);
     
     try {
-      // Update the manual fields with selected options
-      setTopText(selectedTopPhrase);
-      setBottomText(selectedBottomCTA);
-      setImagePrompt(selectedImageDescription);
+      toast.loading("🎨 Gerando combinações de anúncios completos...");
       
-      // Generate script for video
-      const videoScript = `${selectedTopPhrase}. ${selectedBottomCTA}. ${selectedImageDescription}`;
+      // Force Runway for both image and video
+      apiManager.setImageProvider('runway');
+      apiManager.setVideoProvider('runway');
       
-      // Start both generations in parallel
-      const imagePromise = (async () => {
+      // Generate 5-8 different ad combinations
+      const openaiService = new OpenAIService(apiManager.getApiKey('openai')!);
+      const adCombinations = await openaiService.generateMultipleAdOptions(businessAnalysis);
+      
+      setCompleteAdsProgress(25);
+      
+      const completeAds: GeneratedImageData[] = [];
+      const totalCombinations = Math.min(6, adCombinations.topPhrases.length); // Generate 6 complete ads
+      
+      // Generate each complete ad (image + animation)
+      for (let i = 0; i < totalCombinations; i++) {
+        const topPhrase = adCombinations.topPhrases[i];
+        const imageDesc = adCombinations.imageDescriptions[i % adCombinations.imageDescriptions.length];
+        const bottomCTA = adCombinations.bottomCTAs[i % adCombinations.bottomCTAs.length];
+        
         try {
-          const completePrompt = `${selectedImageDescription}. Include the text "${selectedTopPhrase}" prominently at the top of the image in large, bold letters, and "${selectedBottomCTA}" at the bottom in smaller but clear text. Design for Instagram post format (1024x1024), optimized for Meta Ads with high visual impact and professional typography. Text must be in Portuguese and clearly legible.`;
-          
+          // Generate image
           const imageParams: UnifiedImageParams = {
-            prompt: completePrompt,
-            mainText: selectedTopPhrase,
-            subText: selectedBottomCTA,
-            textPosition: "center",
-            size: "1024x1024",
-            quality: "hd",
-            style: "vivid"
+            prompt: imageDesc
           };
           
-          const imageResult = await ImageProviderFactory.generateImage(imageParams);
-          setGenerationProgress(prev => ({ ...prev, image: true }));
-          return imageResult;
-        } catch (error) {
-          setGenerationProgress(prev => ({ ...prev, image: true }));
-          throw error;
-        }
-      })();
-      
-      const videoPromise = (async () => {
-        try {
-          const videoParams: UnifiedVideoParams = {
-            script: videoScript,
-            avatar: "d5d7bcf8fd334bdba1b34bd67a2fb652_public",
-            voice: undefined, // Let HeyGen choose automatically
-            format: "horizontal"
+          const imageResult = await ImageProviderFactory.generateImage(imageParams, 'runway');
+          
+          const adData: GeneratedImageData = {
+            id: crypto.randomUUID(),
+            url: imageResult.image_url,
+            topPhrase,
+            bottomCTA,
+            imageDescription: imageDesc,
+            timestamp: new Date(),
+            prompt: imageDesc,
+            isComplete: false
           };
           
-          const videoResult = await VideoProviderFactory.generateVideo(videoParams);
-          setGenerationProgress(prev => ({ ...prev, video: true }));
-          return videoResult;
+          completeAds.push(adData);
+          setGeneratedImages(prev => [...prev, adData]);
+          
+          // Animate the image automatically
+          try {
+            const videoParams: UnifiedVideoParams = {
+              script: `${topPhrase}. ${imageDesc}. ${bottomCTA}`,
+              image_url: imageResult.image_url,
+              duration: 5
+            };
+            
+            const videoResult = await VideoProviderFactory.generateVideo(videoParams, 'runway');
+            
+            // Update the ad with video
+            const completeAd = { ...adData, videoUrl: videoResult.video_url, isComplete: true };
+            setGeneratedImages(prev => 
+              prev.map(img => img.id === adData.id ? completeAd : img)
+            );
+            
+          } catch (videoError) {
+            console.warn(`Erro ao gerar vídeo para anúncio ${i + 1}:`, videoError);
+            // Keep the ad even if video generation fails
+          }
+          
+          setCompleteAdsProgress((i + 1) / totalCombinations * 100);
+          
         } catch (error) {
-          setGenerationProgress(prev => ({ ...prev, video: true }));
-          throw error;
+          console.error(`Erro ao gerar anúncio ${i + 1}:`, error);
+          toast.error(`Erro ao gerar anúncio ${i + 1}`);
         }
-      })();
+      }
       
-      // Wait for both to complete
-      const [imageResult, videoResult] = await Promise.all([imagePromise, videoPromise]);
+      toast.dismiss();
+      toast.success(`🎉 ${completeAds.length} anúncios completos gerados com sucesso!`);
+      setShowAnalysis(false);
       
-      // Create content data
-      const contentId = Date.now().toString();
+      // Set the last generated ad as active
+      if (completeAds.length > 0) {
+        setActiveImageId(completeAds[completeAds.length - 1].id);
+      }
       
-      const newImageData: GeneratedImageData = {
-        id: contentId + "_img",
-        url: imageResult.url,
-        topPhrase: selectedTopPhrase,
-        bottomCTA: selectedBottomCTA,
-        imageDescription: selectedImageDescription,
-        timestamp: new Date()
-      };
-      
-      const newVideoData: GeneratedVideoData = {
-        id: contentId + "_vid",
-        url: videoResult.video_url,
-        script: videoScript,
-        timestamp: new Date(),
-        imageUrl: imageResult.url
-      };
-      
-      const newContentData: GeneratedContentData = {
-        id: contentId,
-        type: 'both',
-        image: newImageData,
-        video: newVideoData,
-        timestamp: new Date()
-      };
-      
-      // Add to galleries
-      setGeneratedImages(prev => [...prev, newImageData]);
-      setGeneratedVideos(prev => [...prev, newVideoData]);
-      setGeneratedContent(prev => [...prev, newContentData]);
-      setActiveImageId(newImageData.id);
-      setGeneratedImageUrl(imageResult.url);
-      
-      toast.success("🎉 Imagem e vídeo gerados com sucesso!");
     } catch (error) {
-      console.error("Erro ao gerar conteúdo:", error);
-      toast.error("Erro ao gerar conteúdo. Verifique as configurações das APIs.");
+      console.error("Erro ao gerar anúncios completos:", error);
+      toast.dismiss();
+      toast.error("Erro ao gerar anúncios completos. Verifique suas configurações de API.");
     } finally {
-      setIsGeneratingImage(false);
-      setIsGeneratingVideo(false);
-      setGenerationProgress({ image: false, video: false });
+      setIsGeneratingCompleteAds(false);
+      setCompleteAdsProgress(0);
     }
   };
 
@@ -631,7 +417,7 @@ export default function AdCreator() {
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="analysis">📄 Análise</TabsTrigger>
             <TabsTrigger value="video">🎬 Vídeo</TabsTrigger>
-            <TabsTrigger value="apis">⚙️ APIs</TabsTrigger>
+            <TabsTrigger value="config">⚙️ APIs</TabsTrigger>
             <TabsTrigger value="audio">🎤 Áudio</TabsTrigger>
           </TabsList>
 
@@ -699,19 +485,18 @@ export default function AdCreator() {
                   {businessAnalysis && (
                     <Button 
                       onClick={generateMultipleOptions} 
-                      disabled={isGeneratingOptions}
-                      variant="gradient"
-                      className="flex-1"
+                      disabled={!businessAnalysis || isGeneratingCompleteAds}
+                      className="bg-gradient-primary hover:opacity-90 transition-opacity shadow-glow"
                     >
-                      {isGeneratingOptions ? (
+                      {isGeneratingCompleteAds ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Gerando...
+                          🎨 Gerando Anúncios Completos... {Math.round(completeAdsProgress)}%
                         </>
                       ) : (
                         <>
                           <Wand2 className="mr-2 h-4 w-4" />
-                          ✨ Gerar Múltiplas Opções
+                          🎯 Gerar Múltiplas Opções Completas
                         </>
                       )}
                     </Button>
@@ -756,9 +541,12 @@ export default function AdCreator() {
             <VideoCreator businessAnalysis={businessAnalysis} />
           </TabsContent>
 
-          {/* APIs Tab */}
-          <TabsContent value="apis">
-            <ApiConfigPanel onConfigChange={() => {}} />
+          {/* Config Tab */}
+          <TabsContent value="config" className="space-y-4">
+            <SimpleApiConfig onConfigChange={() => {
+              // Force re-render to update provider status
+              setShowAnalysis(prev => prev);
+            }} />
           </TabsContent>
 
           {/* Audio Tab */}
@@ -772,6 +560,28 @@ export default function AdCreator() {
         </Tabs>
 
         <div className="space-y-6">
+          {/* Progress indicator for complete ads generation */}
+          {isGeneratingCompleteAds && (
+            <Card className="bg-gradient-card border-border shadow-card">
+              <CardContent className="pt-6">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Gerando anúncios completos...</span>
+                    <span className="text-sm text-muted-foreground">{Math.round(completeAdsProgress)}%</span>
+                  </div>
+                  <div className="w-full bg-secondary rounded-full h-2">
+                    <div 
+                      className="bg-gradient-primary h-2 rounded-full transition-all duration-300" 
+                      style={{ width: `${completeAdsProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Criando combinações automáticas de copy + imagem + vídeo com Runway ML
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Business Analysis Results */}
           {showAnalysis && businessAnalysis && (
@@ -842,153 +652,6 @@ export default function AdCreator() {
             </Card>
           )}
 
-          {/* Generated Complete Ads Gallery */}
-          {generatedImages.length > 0 && generatedImages[0]?.isComplete && (
-            <Card className="bg-gradient-card border-border shadow-card">
-              <CardHeader>
-                <CardTitle>🎯 Anúncios Completos Gerados com Runway</CardTitle>
-                <p className="text-muted-foreground">
-                  Cada anúncio inclui imagem + vídeo animado + textos prontos para uso
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="grid md:grid-cols-2 gap-6">
-                  {generatedImages.map((ad, index) => (
-                    <div key={ad.id} className="border border-border rounded-lg p-4 bg-background/50">
-                      <div className="space-y-3">
-                        {/* Ad Number */}
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-semibold text-primary">Anúncio #{index + 1}</h4>
-                          <Button
-                            onClick={() => downloadAd(ad.id)}
-                            variant="outline"
-                            size="sm"
-                          >
-                            <Download className="h-4 w-4 mr-1" />
-                            Baixar
-                          </Button>
-                        </div>
-                        
-                        {/* Top Phrase */}
-                        <div>
-                          <p className="text-xs text-muted-foreground">FRASE DE TOPO:</p>
-                          <p className="font-bold text-primary bg-primary/10 p-2 rounded text-sm">
-                            {ad.topPhrase}
-                          </p>
-                        </div>
-                        
-                        {/* Image and Video Preview */}
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <p className="text-xs text-muted-foreground mb-1">IMAGEM:</p>
-                            <img 
-                              src={ad.url} 
-                              alt="Ad visual" 
-                              className="w-full h-24 object-cover rounded border cursor-pointer hover:opacity-80"
-                              onClick={() => handleImageSelect(ad.id)}
-                            />
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground mb-1">VÍDEO:</p>
-                            {ad.videoUrl ? (
-                              <video 
-                                src={ad.videoUrl} 
-                                className="w-full h-24 object-cover rounded border cursor-pointer"
-                                autoPlay
-                                muted
-                                loop
-                              />
-                            ) : (
-                              <div className="w-full h-24 bg-muted rounded border flex items-center justify-center">
-                                <p className="text-xs text-muted-foreground">Gerando...</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        
-                        {/* Call to Action */}
-                        <div>
-                          <p className="text-xs text-muted-foreground">CALL-TO-ACTION:</p>
-                          <p className="font-semibold text-accent bg-accent/20 p-2 rounded text-sm">
-                            {ad.bottomCTA}
-                          </p>
-                        </div>
-                        
-                        {/* Animation Button */}
-                        <Button
-                          onClick={() => handleAnimateImage(ad)}
-                          variant="secondary"
-                          size="sm"
-                          className="w-full"
-                        >
-                          <Wand2 className="h-4 w-4 mr-1" />
-                          Re-animar Imagem
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Multiple Options Selection (now only shows if no complete ads generated) */}
-          {multipleOptions && generatedImages.length === 0 && (
-            <Card className="bg-gradient-card border-border shadow-card">
-              <CardHeader>
-                <CardTitle>⚠️ Seleção Manual (Fallback)</CardTitle>
-                <p className="text-muted-foreground">
-                  Use apenas se a geração automática falhar
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Top Phrases Selection */}
-                <div>
-                  <h4 className="font-semibold text-primary mb-3">📈 Frases de Topo:</h4>
-                  <div className="grid md:grid-cols-2 gap-2">
-                    {multipleOptions.topPhrases.slice(0, 3).map((phrase, index) => (
-                      <button
-                        key={index}
-                        onClick={() => setSelectedTopPhrase(phrase)}
-                        className={`p-3 rounded-lg border text-left transition-all ${
-                          selectedTopPhrase === phrase
-                            ? 'border-primary bg-primary/10 text-primary font-semibold'
-                            : 'border-border bg-background/50 hover:border-primary/50'
-                        }`}
-                      >
-                        {phrase}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Generate Manual Button */}
-                {selectedTopPhrase && (
-                  <div className="pt-4 border-t border-border">
-                    <Button 
-                      onClick={generateImageAndVideo} 
-                      disabled={isGeneratingImage || isGeneratingVideo}
-                      className="w-full bg-gradient-primary hover:opacity-90"
-                      size="lg"
-                    >
-                      {(isGeneratingImage || isGeneratingVideo) ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Gerando...
-                        </>
-                      ) : (
-                        <>
-                          <Wand2 className="mr-2 h-4 w-4" />
-                          Gerar Manual
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
           {/* Image Gallery */}
           <ImageGallery 
             images={generatedImages}
@@ -996,16 +659,16 @@ export default function AdCreator() {
             onImageSelect={handleImageSelect}
             onDownload={downloadAd}
             onAnimateImage={handleAnimateImage}
-        />
+          />
 
-        {/* Image Animation Dialog */}
-        <ImageAnimationDialog
-          isOpen={showAnimationDialog}
-          onClose={() => setShowAnimationDialog(false)}
-          image={imageToAnimate}
-          onAnimate={animateImage}
-          isAnimating={isAnimatingImage}
-        />
+          {/* Image Animation Dialog */}
+          <ImageAnimationDialog
+            isOpen={showAnimationDialog}
+            onClose={() => setShowAnimationDialog(false)}
+            image={imageToAnimate}
+            onAnimate={animateImage}
+            isAnimating={isAnimatingImage}
+          />
         </div>
       </div>
     </div>
