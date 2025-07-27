@@ -1,7 +1,7 @@
 import { toast } from 'sonner';
 import { ApiConfigManager } from './apiConfig';
 import { HeyGenService } from './heygen';
-import { RunwayService } from './runway';
+import { RunwayService, type RunwayVideoParams } from './runway';
 
 export type VideoProvider = 'heygen' | 'synthesia' | 'runway' | 'luma' | 'pika';
 
@@ -112,9 +112,22 @@ class RunwayVideoProvider implements VideoProviderInterface {
       throw new Error('Chave API Runway não configurada');
     }
 
-    // Para Runway, usaremos a funcionalidade de geração de imagem como base
-    // Em uma implementação real, seria necessário usar a API de vídeo do Runway
-    throw new Error('Geração de vídeo com Runway ainda não implementado');
+    const runwayService = new RunwayService(apiKey);
+    
+    const runwayParams: RunwayVideoParams = {
+      text_prompt: params.script,
+      duration: params.duration || 5,
+      seed: Math.floor(Math.random() * 1000000),
+    };
+
+    const result = await runwayService.generateVideo(runwayParams);
+    
+    return {
+      video_url: result.video_url,
+      duration: params.duration || 5,
+      format: params.format || 'vertical',
+      provider: 'runway'
+    };
   }
 }
 
@@ -205,7 +218,7 @@ export class VideoProviderFactory {
       id,
       name: provider.getProviderName(),
       configured: provider.isConfigured(),
-      comingSoon: ['synthesia', 'runway', 'luma', 'pika'].includes(id)
+      comingSoon: ['synthesia', 'luma', 'pika'].includes(id)
     }));
   }
 

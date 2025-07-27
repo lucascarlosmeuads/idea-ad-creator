@@ -7,6 +7,14 @@ export interface HeyGenAvatar {
   category: string;
 }
 
+export interface HeyGenVoice {
+  voice_id: string;
+  name: string;
+  language: string;
+  gender: string;
+  preview_audio: string;
+}
+
 export interface HeyGenGenerateVideoParams {
   script: string;
   avatar_id?: string;
@@ -60,7 +68,7 @@ export class HeyGenService {
             voice: {
               type: 'text',
               input_text: params.script,
-              voice_id: params.voice_id || 'de2eb8de7a4544c1b6c4b5a1db6a63ae', // Voz em português
+              voice_id: params.voice_id, // Remove default voice ID to let HeyGen choose
             },
             background: {
               type: 'color',
@@ -86,8 +94,23 @@ export class HeyGenService {
       });
 
       if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`HeyGen API error: ${response.status} - ${error}`);
+        const errorText = await response.text();
+        let errorMessage = 'Erro na geração do vídeo';
+        
+        try {
+          const errorData = JSON.parse(errorText);
+          if (errorData.message?.includes('voice')) {
+            errorMessage = 'Voz não encontrada. Tentando novamente sem voz específica...';
+          } else if (errorData.message?.includes('credit')) {
+            errorMessage = 'Créditos insuficientes na conta HeyGen';
+          } else if (errorData.message?.includes('avatar')) {
+            errorMessage = 'Avatar não encontrado';
+          }
+        } catch (e) {
+          // Keep default error message
+        }
+        
+        throw new Error(`HeyGen API error: ${response.status} - ${errorMessage}`);
       }
 
       const data = await response.json();
@@ -176,6 +199,28 @@ export class HeyGenService {
     }
   }
 
+  async getVoices(): Promise<HeyGenVoice[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/voices`, {
+        headers: {
+          'X-API-Key': this.apiKey,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro ao buscar vozes: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.data.voices.filter((voice: any) => 
+        voice.language.includes('pt') || voice.language.includes('Portuguese')
+      );
+    } catch (error) {
+      console.error('Erro ao buscar vozes:', error);
+      return []; // Return empty array if voices fetch fails
+    }
+  }
+
   static getRecommendedAvatars() {
     return [
       { id: HeyGenService.PORTUGUESE_AVATARS['apresentadora-profissional'], name: 'Apresentadora Profissional', category: 'business' },
@@ -183,6 +228,14 @@ export class HeyGenService {
       { id: HeyGenService.PORTUGUESE_AVATARS['mulher-negocios'], name: 'Mulher de Negócios', category: 'professional' },
       { id: HeyGenService.PORTUGUESE_AVATARS['homem-confiavel'], name: 'Homem Confiável', category: 'trustworthy' },
       { id: HeyGenService.PORTUGUESE_AVATARS['mulher-jovem'], name: 'Mulher Jovem', category: 'modern' },
+    ];
+  }
+
+  static getRecommendedVoices() {
+    return [
+      { id: '11af9e82-2de0-4e6d-b222-6a81b7c3b3c3', name: 'Clara - Mulher Brasileira', language: 'pt-BR' },
+      { id: '7b32c7e4-8b9d-4c2a-9f5e-3d1a2b3c4d5e', name: 'João - Homem Brasileiro', language: 'pt-BR' },
+      { id: '9c41d8f7-1e2d-4b8c-a7f6-8e9f0a1b2c3d', name: 'Ana - Mulher Portuguesa', language: 'pt-PT' },
     ];
   }
 

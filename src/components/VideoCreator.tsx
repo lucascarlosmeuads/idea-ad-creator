@@ -11,6 +11,7 @@ import { VideoProviderFactory, type UnifiedVideoParams, type UnifiedVideoResult 
 import { ElevenLabsService } from "@/services/elevenlabs";
 import { TextProviderFactory } from "@/services/textProviderFactory";
 import { ApiConfigManager } from "@/services/apiConfig";
+import { HeyGenService } from "@/services/heygen";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import type { BusinessAnalysis } from "@/services/openai";
@@ -312,11 +313,21 @@ Responda APENAS com o texto do roteiro, sem formatação ou explicações adicio
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="auto">🔄 Automática</SelectItem>
-                  {hasElevenLabs && ElevenLabsService.getPortugueseVoices().map((voice) => (
+                  {HeyGenService.getRecommendedVoices().map((voice) => (
                     <SelectItem key={voice.id} value={voice.id}>
-                      {voice.name}
+                      🎙️ {voice.name}
                     </SelectItem>
                   ))}
+                   {hasElevenLabs && (
+                    <>
+                      <SelectItem value="elevenlabs-divider" disabled>─── ElevenLabs ───</SelectItem>
+                      {ElevenLabsService.getPortugueseVoices().map((voice) => (
+                        <SelectItem key={voice.id} value={voice.id}>
+                          🤖 {voice.name}
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>

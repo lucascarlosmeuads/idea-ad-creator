@@ -15,6 +15,19 @@ export interface RunwayGeneratedImage {
   taskId: string;
 }
 
+export interface RunwayVideoParams {
+  text_prompt: string;
+  seed?: number;
+  duration?: number;
+}
+
+export interface RunwayVideoResult {
+  id: string;
+  video_url: string;
+  status: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED';
+  created_at: string;
+}
+
 interface RunwayTaskResponse {
   id: string;
 }
@@ -23,6 +36,7 @@ interface RunwayTaskResult {
   id: string;
   status: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED';
   image?: string;
+  output?: string[];
   failureReason?: string;
   seed?: number;
 }
@@ -110,5 +124,104 @@ export class RunwayService {
     }
 
     throw new Error('Timeout: Geração levou muito tempo para completar');
+  }
+
+  async generateVideo(params: RunwayVideoParams): Promise<RunwayVideoResult> {
+    try {
+      const response = await fetch(`${this.baseUrl}/text_to_video`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'X-Runway-Version': '2024-11-06',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: params.text_prompt,
+          model: 'gen3a_turbo',
+          seed: params.seed || Math.floor(Math.random() * 1000000),
+          duration: params.duration || 5,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Runway Video API error: ${response.status} - ${error}`);
+      }
+
+      const task = await response.json();
+      
+      // Poll for completion
+      const result = await this.pollForVideoCompletion(task.id);
+      
+      if (result.status === 'FAILED') {
+        throw new Error(`Geração de vídeo falhou: ${result.failureReason || 'Erro desconhecido'}`);
+      }
+
+      if (!result.output || result.output.length === 0) {
+        throw new Error('Nenhum vídeo retornado');
+      }
+
+      return {
+        id: result.id,
+        video_url: result.output[0],
+        status: 'SUCCEEDED',
+        created_at: new Date().toISOString(),
+      };
+      
+    } catch (error) {
+      console.error('Erro na geração de vídeo Runway:', error);
+      throw new Error('Falha na geração de vídeo Runway. Verifique sua chave API.');
+    }
+  }
+
+  private async pollForVideoCompletion(taskId: string, maxAttempts = 60): Promise<RunwayTaskResult> {
+    let attempts = 0;
+    
+    while (attempts < maxAttempts) {
+      try {
+        const response = await fetch(`${this.baseUrl}/tasks/${taskId}`, {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'X-Runway-Version': '2024-11-06',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Erro ao verificar status: ${response.status}`);
+        }
+
+        const result: RunwayTaskResult = await response.json();
+
+        if (result.status === 'SUCCEEDED' || result.status === 'FAILED') {
+          return result;
+        }
+
+        // Wait 5 seconds for video generation (takes longer than images)
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        attempts++;
+        
+      } catch (error) {
+        console.error('Erro ao verificar status do vídeo:', error);
+        attempts++;
+      }
+    }
+
+    throw new Error('Timeout na geração do vídeo Runway. Tente novamente.');
+  }
+
+  async testConnection(): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.baseUrl}/tasks`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'X-Runway-Version': '2024-11-06',
+        },
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Erro ao testar conexão com Runway:', error);
+      return false;
+    }
   }
 }
