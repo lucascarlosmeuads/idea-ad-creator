@@ -262,7 +262,7 @@ export default function AdCreator() {
           
           const adData: GeneratedImageData = {
             id: crypto.randomUUID(),
-            url: imageResult.image_url,
+            url: imageResult.url,
             topPhrase,
             bottomCTA,
             imageDescription: imageDesc,
@@ -278,7 +278,7 @@ export default function AdCreator() {
           try {
             const videoParams: UnifiedVideoParams = {
               script: `${topPhrase}. ${imageDesc}. ${bottomCTA}`,
-              image_url: imageResult.image_url,
+              image_url: imageResult.url,
               duration: 5
             };
             
