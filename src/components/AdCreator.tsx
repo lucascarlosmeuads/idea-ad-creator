@@ -216,53 +216,78 @@ export default function AdCreator() {
     console.log("[DEBUG] Iniciando geração de múltiplas opções");
     console.log("[DEBUG] Business Analysis:", businessAnalysis);
 
-    // Test API connections first
+    // Check API availability
     const hasOpenAI = !!apiManager.getApiKey('openai');
     const hasRunway = !!apiManager.getApiKey('runway');
+    const hasRunware = !!apiManager.getApiKey('runware');
     
-    console.log("[DEBUG] API Keys Status:", { hasOpenAI, hasRunway });
+    console.log("[DEBUG] API Keys Status:", { hasOpenAI, hasRunway, hasRunware });
     
     if (!hasOpenAI) {
       toast.error("⚠️ Configure a API do OpenAI primeiro para gerar anúncios");
       return;
     }
     
-    if (!hasRunway) {
-      toast.error("⚠️ Configure a API do Runway primeiro para gerar imagens e vídeos");
+    if (!hasRunway && !hasRunware) {
+      toast.error("⚠️ Configure a API do Runway ou Runware primeiro para gerar imagens");
       return;
     }
 
-    // Test Runway connection
-    try {
-      const RunwayService = (await import("@/services/runway")).RunwayService;
-      const runwayService = new RunwayService(apiManager.getApiKey('runway')!);
-      const isRunwayConnected = await runwayService.testConnection();
-      
-      console.log("[DEBUG] Runway connection test:", isRunwayConnected);
-      
-      if (!isRunwayConnected) {
-        toast.error("⚠️ Falha na conexão com Runway ML. Verifique sua chave API.");
-        return;
+    let useRunware = false;
+    
+    // Test Runway first, fallback to Runware if it fails
+    if (hasRunway) {
+      try {
+        const RunwayService = (await import("@/services/runway")).RunwayService;
+        const runwayService = new RunwayService(apiManager.getApiKey('runway')!);
+        const isRunwayConnected = await runwayService.testConnection();
+        
+        console.log("[DEBUG] Runway connection test:", isRunwayConnected);
+        
+        if (!isRunwayConnected) {
+          console.log("[DEBUG] Runway falhou, tentando Runware...");
+          if (hasRunware) {
+            useRunware = true;
+            toast.info("⚠️ Runway indisponível. Usando Runware como alternativa.");
+          } else {
+            toast.error("⚠️ Runway falhou e Runware não está configurado.");
+            return;
+          }
+        }
+      } catch (error) {
+        console.error("[DEBUG] Erro ao testar Runway:", error);
+        if (hasRunware) {
+          useRunware = true;
+          toast.info("⚠️ Erro no Runway. Usando Runware como alternativa.");
+        } else {
+          toast.error("⚠️ Erro no Runway e Runware não está configurado.");
+          return;
+        }
       }
-    } catch (error) {
-      console.error("[DEBUG] Erro ao testar Runway:", error);
-      toast.error("⚠️ Erro ao validar API do Runway ML");
-      return;
+    } else if (hasRunware) {
+      useRunware = true;
+      console.log("[DEBUG] Usando Runware (Runway não configurado)");
     }
 
     setIsGeneratingCompleteAds(true);
     setCompleteAdsProgress(0);
     
     try {
-      toast.loading("🎨 Gerando combinações de anúncios completos...");
+      const providerName = useRunware ? "Runware" : "Runway";
+      toast.loading(`🎨 Gerando anúncios com ${providerName}...`);
       
-      // Force Runway for both image and video
-      apiManager.setImageProvider('runway');
-      apiManager.setVideoProvider('runway');
+      // Set the appropriate provider
+      if (useRunware) {
+        apiManager.setImageProvider('runware');
+        apiManager.setVideoProvider('runway'); // Keep video on Runway if available
+      } else {
+        apiManager.setImageProvider('runway');
+        apiManager.setVideoProvider('runway');
+      }
       
       console.log("[DEBUG] Chamando OpenAI para gerar múltiplas opções...");
       
-      // Generate 5-8 different ad combinations with retry
+      // Generate ad combinations with retry
       const openaiService = new OpenAIService(apiManager.getApiKey('openai')!);
       let adCombinations;
       
@@ -289,7 +314,7 @@ export default function AdCreator() {
       
       console.log("[DEBUG] Gerando", totalCombinations, "anúncios completos");
       
-      // Generate each complete ad (image + animation)
+      // Generate each complete ad (image only for now)
       for (let i = 0; i < totalCombinations; i++) {
         const topPhrase = adCombinations.topPhrases[i];
         const imageDesc = adCombinations.imageDescriptions[i % adCombinations.imageDescriptions.length];
@@ -299,7 +324,7 @@ export default function AdCreator() {
         
         try {
           // Generate image with retry
-          console.log(`[DEBUG] Gerando imagem ${i + 1}...`);
+          console.log(`[DEBUG] Gerando imagem ${i + 1} com ${providerName}...`);
           
           const imageParams: UnifiedImageParams = {
             prompt: imageDesc
@@ -308,10 +333,11 @@ export default function AdCreator() {
           let imageResult;
           let retryCount = 0;
           const maxRetries = 2;
+          const provider = useRunware ? 'runware' : 'runway';
           
           while (retryCount <= maxRetries) {
             try {
-              imageResult = await ImageProviderFactory.generateImage(imageParams, 'runway');
+              imageResult = await ImageProviderFactory.generateImage(imageParams, provider);
               console.log(`[DEBUG] Imagem ${i + 1} gerada:`, imageResult);
               break;
             } catch (imageError) {
@@ -336,7 +362,7 @@ export default function AdCreator() {
             imageDescription: imageDesc,
             timestamp: new Date(),
             prompt: imageDesc,
-            isComplete: false
+            isComplete: true // Mark as complete since we're focusing on images first
           };
           
           completeAds.push(adData);
@@ -344,33 +370,7 @@ export default function AdCreator() {
           
           console.log(`[DEBUG] Anúncio ${i + 1} salvo:`, adData);
           
-          // Try to animate the image (optional)
-          try {
-            console.log(`[DEBUG] Gerando vídeo para anúncio ${i + 1}...`);
-            
-            const videoParams: UnifiedVideoParams = {
-              script: `${topPhrase}. ${imageDesc}. ${bottomCTA}`,
-              image_url: imageResult.url,
-              duration: 5
-            };
-            
-            const videoResult = await VideoProviderFactory.generateVideo(videoParams, 'runway');
-            console.log(`[DEBUG] Vídeo ${i + 1} gerado:`, videoResult);
-            
-            // Update the ad with video
-            const completeAd = { ...adData, videoUrl: videoResult.video_url, isComplete: true };
-            setGeneratedImages(prev => 
-              prev.map(img => img.id === adData.id ? completeAd : img)
-            );
-            
-            console.log(`[DEBUG] Anúncio ${i + 1} completo com vídeo`);
-            
-          } catch (videoError) {
-            console.warn(`[DEBUG] Erro ao gerar vídeo para anúncio ${i + 1}:`, videoError);
-            // Keep the ad even if video generation fails
-            toast.info(`Anúncio ${i + 1} criado (sem animação)`);
-          }
-          
+          // Update progress
           setCompleteAdsProgress((i + 1) / totalCombinations * 100);
           
         } catch (error) {
@@ -383,7 +383,7 @@ export default function AdCreator() {
       toast.dismiss();
       
       if (completeAds.length > 0) {
-        toast.success(`🎉 ${completeAds.length} anúncios completos gerados com sucesso!`);
+        toast.success(`🎉 ${completeAds.length} anúncios gerados com sucesso usando ${providerName}!`);
         setShowAnalysis(false);
         
         // Set the last generated ad as active
