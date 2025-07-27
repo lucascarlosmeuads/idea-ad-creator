@@ -20,7 +20,7 @@ import {
   ExternalLink,
   TestTube2
 } from 'lucide-react';
-import { ApiConfigManager, type ApiConfig, type ImageProvider, type TextProvider } from '@/services/apiConfig';
+import { ApiConfigManager, type ApiConfig, type ImageProvider, type TextProvider, type VideoProvider } from '@/services/apiConfig';
 import { ImageProviderFactory } from '@/services/imageProviderFactory';
 import { TextProviderFactory } from '@/services/textProviderFactory';
 import { toast } from 'sonner';
@@ -33,6 +33,7 @@ export default function ApiConfigPanel({ onConfigChange }: ApiConfigPanelProps) 
   const [config, setConfig] = useState<ApiConfig>({});
   const [selectedImageProvider, setSelectedImageProvider] = useState<ImageProvider>('openai');
   const [selectedTextProvider, setSelectedTextProvider] = useState<TextProvider>('openai');
+  const [selectedVideoProvider, setSelectedVideoProvider] = useState<VideoProvider>('heygen');
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const [tempKeys, setTempKeys] = useState<ApiConfig>({});
 
@@ -43,12 +44,14 @@ export default function ApiConfigPanel({ onConfigChange }: ApiConfigPanelProps) 
     setConfig(settings.config);
     setSelectedImageProvider(settings.selectedImageProvider);
     setSelectedTextProvider(settings.selectedTextProvider);
+    setSelectedVideoProvider(settings.selectedVideoProvider);
     setTempKeys(settings.config);
 
     const unsubscribe = apiManager.subscribe((newSettings) => {
       setConfig(newSettings.config);
       setSelectedImageProvider(newSettings.selectedImageProvider);
       setSelectedTextProvider(newSettings.selectedTextProvider);
+      setSelectedVideoProvider(newSettings.selectedVideoProvider);
       setTempKeys(newSettings.config);
       onConfigChange?.();
     });
@@ -90,6 +93,10 @@ export default function ApiConfigPanel({ onConfigChange }: ApiConfigPanelProps) 
 
   const updateTextProvider = (provider: TextProvider) => {
     apiManager.setTextProvider(provider);
+  };
+
+  const updateVideoProvider = (provider: VideoProvider) => {
+    apiManager.setVideoProvider(provider);
   };
 
   const testApiConfiguration = async (provider: keyof ApiConfig) => {
@@ -165,7 +172,14 @@ export default function ApiConfigPanel({ onConfigChange }: ApiConfigPanelProps) 
     { key: 'midjourney', name: 'Midjourney', description: 'API para geração de imagens com Midjourney', link: 'https://midjourney.com' },
     { key: 'replicate', name: 'Replicate', description: 'API para geração de imagens com Replicate', link: 'https://replicate.com' },
     { key: 'claude', name: 'Claude (Anthropic)', description: 'API para análise de texto e geração de copy', link: 'https://anthropic.com' },
-    { key: 'gemini', name: 'Google Gemini', description: 'API para análise de texto e geração de copy', link: 'https://cloud.google.com/vertex-ai' }
+    { key: 'gemini', name: 'Google Gemini', description: 'API para análise de texto e geração de copy', link: 'https://cloud.google.com/vertex-ai' },
+    // Video APIs
+    { key: 'heygen', name: 'HeyGen', description: 'API para geração de vídeos com avatares', link: 'https://heygen.com' },
+    { key: 'synthesia', name: 'Synthesia', description: 'API para geração de vídeos com IA', link: 'https://synthesia.io' },
+    { key: 'luma', name: 'Luma AI', description: 'API para geração de vídeos', link: 'https://lumalabs.ai' },
+    { key: 'pika', name: 'Pika Labs', description: 'API para geração de vídeos', link: 'https://pika.art' },
+    // Audio APIs
+    { key: 'elevenlabs', name: 'ElevenLabs', description: 'API para síntese de voz (texto para fala)', link: 'https://elevenlabs.io' }
   ];
 
   return (
@@ -178,8 +192,9 @@ export default function ApiConfigPanel({ onConfigChange }: ApiConfigPanelProps) 
       </CardHeader>
       <CardContent className="space-y-6">
         <Tabs defaultValue="providers" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="providers">Provedores</TabsTrigger>
+            <TabsTrigger value="video">Vídeo</TabsTrigger>
             <TabsTrigger value="keys">Chaves API</TabsTrigger>
             <TabsTrigger value="settings">Configurações</TabsTrigger>
           </TabsList>
@@ -241,6 +256,61 @@ export default function ApiConfigPanel({ onConfigChange }: ApiConfigPanelProps) 
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="video" className="space-y-6">
+            <div>
+              <Label>Provedor de Vídeo</Label>
+              <p className="text-sm text-muted-foreground mb-2">
+                Para geração de vídeos com avatares e vozes
+              </p>
+              <Select value={selectedVideoProvider} onValueChange={updateVideoProvider}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="heygen">
+                    <div className="flex items-center justify-between w-full">
+                      <span>HeyGen (Recomendado)</span>
+                      <Badge variant="default">Ativo</Badge>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="synthesia" disabled>
+                    <div className="flex items-center justify-between w-full">
+                      <span>Synthesia</span>
+                      <Badge variant="outline">Em breve</Badge>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="luma" disabled>
+                    <div className="flex items-center justify-between w-full">
+                      <span>Luma AI</span>
+                      <Badge variant="outline">Em breve</Badge>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="pika" disabled>
+                    <div className="flex items-center justify-between w-full">
+                      <span>Pika Labs</span>
+                      <Badge variant="outline">Em breve</Badge>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Provedor de Áudio (ElevenLabs)</Label>
+              <p className="text-sm text-muted-foreground mb-2">
+                Para síntese de voz em português (opcional, mas recomendado)
+              </p>
+              <div className="flex items-center gap-2">
+                <Badge variant={apiManager.hasApiKey('elevenlabs') ? "default" : "secondary"}>
+                  {apiManager.hasApiKey('elevenlabs') ? "✅ Configurado" : "⚠️ Não configurado"}
+                </Badge>
+                {apiManager.hasApiKey('elevenlabs') && (
+                  <Badge variant="outline">Vozes em português disponíveis</Badge>
+                )}
+              </div>
             </div>
           </TabsContent>
 

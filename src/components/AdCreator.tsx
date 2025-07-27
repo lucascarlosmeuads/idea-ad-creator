@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Download, Wand2, FileText, Brain, Zap, ImageIcon, Settings, Mic, AlertTriangle, CheckCircle } from "lucide-react";
+import { Loader2, Download, Wand2, FileText, Brain, Zap, ImageIcon, Settings, Mic, AlertTriangle, CheckCircle, Video } from "lucide-react";
 import { toast } from "sonner";
 import heroImage from "@/assets/idea-mining-hero.jpg";
 import { OpenAIService, type BusinessAnalysis, type AdPromptElements, type MultipleAdOptions } from "@/services/openai";
@@ -17,6 +17,7 @@ import { TextProviderFactory } from "@/services/textProviderFactory";
 import { ApiConfigManager } from "@/services/apiConfig";
 import ApiConfigPanel from "./ApiConfigPanel";
 import AudioRecorderPanel from "./AudioRecorderPanel";
+import VideoCreator from "./VideoCreator";
 
 interface GeneratedImageData {
   id: string;
@@ -346,8 +347,9 @@ export default function AdCreator() {
         </div>
 
         <Tabs defaultValue="analysis" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="analysis">📄 Análise</TabsTrigger>
+            <TabsTrigger value="video">🎬 Vídeo</TabsTrigger>
             <TabsTrigger value="apis">⚙️ APIs</TabsTrigger>
             <TabsTrigger value="audio">🎤 Áudio</TabsTrigger>
           </TabsList>
@@ -466,6 +468,11 @@ export default function AdCreator() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Video Creator Tab */}
+          <TabsContent value="video" className="space-y-6">
+            <VideoCreator businessAnalysis={businessAnalysis} />
           </TabsContent>
 
           {/* APIs Tab */}

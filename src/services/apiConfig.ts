@@ -3,21 +3,29 @@ import { toast } from 'sonner';
 export interface ApiConfig {
   openai?: string;
   runware?: string;
-  // Future APIs
   runway?: string;
   midjourney?: string;
   replicate?: string;
   claude?: string;
   gemini?: string;
+  // Video APIs
+  heygen?: string;
+  synthesia?: string;
+  luma?: string;
+  pika?: string;
+  // Audio APIs
+  elevenlabs?: string;
 }
 
 export type ImageProvider = 'openai' | 'runware' | 'runway' | 'midjourney' | 'replicate';
 export type TextProvider = 'openai' | 'claude' | 'gemini';
+export type VideoProvider = 'heygen' | 'synthesia' | 'runway' | 'luma' | 'pika';
 
 export interface ApiSettings {
   config: ApiConfig;
   selectedImageProvider: ImageProvider;
   selectedTextProvider: TextProvider;
+  selectedVideoProvider: VideoProvider;
 }
 
 const STORAGE_KEY = 'ad_creator_api_settings';
@@ -51,7 +59,8 @@ export class ApiConfigManager {
     return {
       config: {},
       selectedImageProvider: 'openai',
-      selectedTextProvider: 'openai'
+      selectedTextProvider: 'openai',
+      selectedVideoProvider: 'heygen'
     };
   }
 
@@ -97,6 +106,12 @@ export class ApiConfigManager {
     toast.success(`Provedor de texto alterado para ${provider.toUpperCase()}`);
   }
 
+  public setVideoProvider(provider: VideoProvider): void {
+    this.settings.selectedVideoProvider = provider;
+    this.saveSettings();
+    toast.success(`Provedor de vídeo alterado para ${provider.toUpperCase()}`);
+  }
+
   public getApiKey(provider: keyof ApiConfig): string | undefined {
     return this.settings.config[provider];
   }
@@ -111,6 +126,10 @@ export class ApiConfigManager {
 
   public getSelectedTextProvider(): TextProvider {
     return this.settings.selectedTextProvider;
+  }
+
+  public getSelectedVideoProvider(): VideoProvider {
+    return this.settings.selectedVideoProvider;
   }
 
   public validateApiKey(provider: keyof ApiConfig, apiKey: string): boolean {
@@ -128,6 +147,16 @@ export class ApiConfigManager {
       case 'claude':
         return apiKey.startsWith('sk-') && apiKey.length > 20;
       case 'gemini':
+        return apiKey.length > 10;
+      case 'heygen':
+        return apiKey.length > 10;
+      case 'synthesia':
+        return apiKey.length > 10;
+      case 'luma':
+        return apiKey.length > 10;
+      case 'pika':
+        return apiKey.length > 10;
+      case 'elevenlabs':
         return apiKey.length > 10;
       default:
         return apiKey.length > 0;
@@ -150,7 +179,8 @@ export class ApiConfigManager {
     this.settings = {
       config: {},
       selectedImageProvider: 'openai',
-      selectedTextProvider: 'openai'
+      selectedTextProvider: 'openai',
+      selectedVideoProvider: 'heygen'
     };
     this.saveSettings();
     toast.success('Todas as configurações foram limpas');
@@ -167,6 +197,9 @@ export class ApiConfigManager {
         // Ensure backward compatibility
         if (!imported.selectedTextProvider) {
           imported.selectedTextProvider = 'openai';
+        }
+        if (!imported.selectedVideoProvider) {
+          imported.selectedVideoProvider = 'heygen';
         }
         this.settings = imported;
         this.saveSettings();
