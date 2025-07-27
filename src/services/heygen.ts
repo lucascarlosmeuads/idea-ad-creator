@@ -95,7 +95,9 @@ export class HeyGenService {
       // More specific error messages
       let errorMessage = "Erro na geração do vídeo";
       if (errorData.error) {
-        const error = errorData.error.toLowerCase();
+        // Safely handle different error types
+        const errorStr = typeof errorData.error === 'string' ? errorData.error : String(errorData.error);
+        const error = errorStr.toLowerCase();
         if (error.includes("voice")) {
           errorMessage = "Voz inválida ou indisponível. Tente usar 'Auto' ou selecione outra voz.";
         } else if (error.includes("credit")) {

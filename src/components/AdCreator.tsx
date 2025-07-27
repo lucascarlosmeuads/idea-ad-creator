@@ -28,6 +28,7 @@ interface GeneratedImageData {
   bottomCTA: string;
   imageDescription: string;
   timestamp: Date;
+  videoUrl?: string;
 }
 
 interface GeneratedVideoData {
@@ -283,15 +284,104 @@ export default function AdCreator() {
     }
 
     setIsGeneratingOptions(true);
+    setIsGeneratingImage(true);
+    setIsGeneratingVideo(true);
+    
     try {
+      // First generate the multiple options
       const options = await TextProviderFactory.generateMultipleAdOptions(businessAnalysis);
       setMultipleOptions(options);
-      toast.success("Múltiplas opções geradas com sucesso!");
+      
+      // Create all possible combinations
+      const combinations = [];
+      for (let i = 0; i < Math.min(options.topPhrases.length, 2); i++) {
+        for (let j = 0; j < Math.min(options.imageDescriptions.length, 2); j++) {
+          for (let k = 0; k < Math.min(options.bottomCTAs.length, 2); k++) {
+            combinations.push({
+              topPhrase: options.topPhrases[i],
+              imageDescription: options.imageDescriptions[j],
+              bottomCTA: options.bottomCTAs[k],
+            });
+          }
+        }
+      }
+      
+      // Take first 5 combinations
+      const selectedCombinations = combinations.slice(0, 5);
+      
+      toast.success(`Gerando ${selectedCombinations.length} anúncios completos...`);
+      
+      // Generate all ads in parallel
+      const adPromises = selectedCombinations.map(async (combo, index) => {
+        try {
+          const completePrompt = `${combo.imageDescription}. Include the text "${combo.topPhrase}" prominently at the top of the image in large, bold letters, and "${combo.bottomCTA}" at the bottom in smaller but clear text. Design for Instagram post format (1024x1024), optimized for Meta Ads with high visual impact and professional typography. Text must be in Portuguese and clearly legible.`;
+          
+          const imageParams: UnifiedImageParams = {
+            prompt: completePrompt,
+            mainText: combo.topPhrase,
+            subText: combo.bottomCTA,
+            textPosition: "center",
+            size: "1024x1024",
+            quality: "hd",
+            style: "vivid"
+          };
+          
+          // Generate image
+          const imageResult = await ImageProviderFactory.generateImage(imageParams);
+          
+          let videoResult = null;
+          
+          // Generate video if provider is configured
+          if (VideoProviderFactory.hasAnyVideoProviderConfigured()) {
+            try {
+              const videoScript = `${combo.topPhrase}. ${combo.bottomCTA}. ${combo.imageDescription}`;
+              const videoParams: UnifiedVideoParams = {
+                script: videoScript,
+                avatar: "d5d7bcf8fd334bdba1b34bd67a2fb652_public",
+                voice: undefined,
+                format: "horizontal"
+              };
+              
+              videoResult = await VideoProviderFactory.generateVideo(videoParams);
+            } catch (videoError) {
+              console.error(`Erro ao gerar vídeo para combinação ${index + 1}:`, videoError);
+            }
+          }
+          
+          return {
+            id: `combo-${Date.now()}-${index}`,
+            url: imageResult.url,
+            topPhrase: combo.topPhrase,
+            bottomCTA: combo.bottomCTA,
+            imageDescription: combo.imageDescription,
+            timestamp: new Date(),
+            videoUrl: videoResult?.videoUrl
+          };
+        } catch (error) {
+          console.error(`Erro ao gerar anúncio ${index + 1}:`, error);
+          return null;
+        }
+      });
+      
+      const generatedAds = await Promise.all(adPromises);
+      const successfulAds = generatedAds.filter(ad => ad !== null) as GeneratedImageData[];
+      
+      if (successfulAds.length > 0) {
+        setGeneratedImages(successfulAds);
+        setActiveImageId(successfulAds[0].id);
+        setGeneratedImageUrl(successfulAds[0].url);
+        toast.success(`${successfulAds.length} anúncios completos gerados com sucesso!`);
+      } else {
+        toast.error("Erro ao gerar anúncios. Tente novamente.");
+      }
+      
     } catch (error) {
       console.error("Erro ao gerar múltiplas opções:", error);
       toast.error("Erro ao gerar opções. Tente novamente.");
     } finally {
       setIsGeneratingOptions(false);
+      setIsGeneratingImage(false);
+      setIsGeneratingVideo(false);
     }
   };
 
