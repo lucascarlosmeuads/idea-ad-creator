@@ -295,7 +295,7 @@ Responda APENAS com o texto do roteiro, sem formatação ou explicações adicio
                   <SelectValue placeholder="Selecionar avatar (padrão: automático)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">🤖 Automático</SelectItem>
+                  <SelectItem value="auto">🤖 Automático</SelectItem>
                   <SelectItem value="professional-woman">👩‍💼 Mulher Profissional</SelectItem>
                   <SelectItem value="professional-man">👨‍💼 Homem Profissional</SelectItem>
                   <SelectItem value="casual-woman">👩 Mulher Casual</SelectItem>
@@ -311,7 +311,7 @@ Responda APENAS com o texto do roteiro, sem formatação ou explicações adicio
                   <SelectValue placeholder="Selecionar voz (padrão: automática)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">🔄 Automática</SelectItem>
+                  <SelectItem value="auto">🔄 Automática</SelectItem>
                   {hasElevenLabs && ElevenLabsService.getPortugueseVoices().map((voice) => (
                     <SelectItem key={voice.id} value={voice.id}>
                       {voice.name}
