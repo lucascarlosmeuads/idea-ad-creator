@@ -67,6 +67,7 @@ export class ApiConfigManager {
   private saveSettings(): void {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.settings));
+      console.log('[DEBUG] Settings saved to localStorage:', this.settings);
       this.notifyListeners();
     } catch (error) {
       console.error('Erro ao salvar configurações:', error);
@@ -83,7 +84,8 @@ export class ApiConfigManager {
   }
 
   public updateApiKey(provider: keyof ApiConfig, apiKey: string): void {
-    this.settings.config[provider] = apiKey;
+    this.settings.config[provider] = apiKey.trim();
+    console.log(`[DEBUG] updateApiKey(${provider}):`, { apiKey: apiKey ? `${apiKey.substring(0, 10)}...` : 'null', saved: true });
     this.saveSettings();
     toast.success(`Chave API ${provider.toUpperCase()} atualizada`);
   }
@@ -117,7 +119,10 @@ export class ApiConfigManager {
   }
 
   public hasApiKey(provider: keyof ApiConfig): boolean {
-    return !!this.settings.config[provider]?.trim();
+    const apiKey = this.settings.config[provider];
+    const hasKey = !!apiKey?.trim();
+    console.log(`[DEBUG] hasApiKey(${provider}):`, { apiKey: apiKey ? `${apiKey.substring(0, 10)}...` : 'null', hasKey, fullConfig: this.settings.config });
+    return hasKey;
   }
 
   public getSelectedImageProvider(): ImageProvider {

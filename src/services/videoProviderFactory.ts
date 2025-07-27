@@ -103,7 +103,9 @@ class RunwayVideoProvider implements VideoProviderInterface {
 
   isConfigured(): boolean {
     const apiManager = ApiConfigManager.getInstance();
-    return apiManager.hasApiKey('runway');
+    const hasKey = apiManager.hasApiKey('runway');
+    console.log('[DEBUG] RunwayVideoProvider.isConfigured():', hasKey);
+    return hasKey;
   }
 
   async generateVideo(params: UnifiedVideoParams): Promise<UnifiedVideoResult> {

@@ -235,6 +235,7 @@ export class RunwayService {
 
   async testConnection(): Promise<boolean> {
     try {
+      console.log('[DEBUG] Testing Runway connection with API key:', this.apiKey ? `${this.apiKey.substring(0, 10)}...` : 'null');
       const response = await fetch(`${this.baseUrl}/tasks`, {
         method: 'GET',
         headers: {
@@ -242,6 +243,7 @@ export class RunwayService {
           'X-Runway-Version': '2024-11-06',
         },
       });
+      console.log('[DEBUG] Runway connection test result:', { status: response.status, ok: response.ok });
       return response.ok;
     } catch (error) {
       console.error('Erro ao testar conexão com Runway:', error);
