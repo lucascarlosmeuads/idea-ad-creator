@@ -853,58 +853,37 @@ export default function AdCreator() {
                       </div>
                     )}
                     
-                    <div className="grid gap-3">
-                      {/* Image Only Button */}
+                    <div className="flex justify-center">
+                      {/* Single Generate Button */}
                       <Button 
-                        onClick={generateImageFromSelection} 
+                        onClick={generateImageAndVideo} 
                         disabled={isGeneratingImage || isGeneratingVideo}
-                        variant="outline"
-                        className="w-full"
+                        className="w-full bg-gradient-primary hover:opacity-90 shadow-glow"
+                        size="lg"
                       >
-                        {isGeneratingImage && !isGeneratingVideo ? (
+                        {(isGeneratingImage || isGeneratingVideo) ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Gerando Imagem...
+                            Gerando Conteúdo...
                           </>
                         ) : (
                           <>
-                            <ImageIcon className="mr-2 h-4 w-4" />
-                            📸 Apenas Imagem (1024x1024)
+                            <Wand2 className="mr-2 h-4 w-4" />
+                            ✨ Gerar Conteúdo Completo
                           </>
                         )}
                       </Button>
-                      
-                      {/* Image + Video Button */}
-                      {VideoProviderFactory.hasAnyVideoProviderConfigured() && (
-                        <Button 
-                          onClick={generateImageAndVideo} 
-                          disabled={isGeneratingImage || isGeneratingVideo}
-                          className="w-full bg-gradient-primary hover:opacity-90 shadow-glow"
-                        >
-                          {(isGeneratingImage && isGeneratingVideo) ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Gerando Imagem + Vídeo...
-                            </>
-                          ) : (
-                            <>
-                              <Video className="mr-2 h-4 w-4" />
-                              🎬 Gerar Imagem + Vídeo
-                            </>
-                          )}
-                        </Button>
-                      )}
-                      
-                      {!VideoProviderFactory.hasAnyVideoProviderConfigured() && (
-                        <Alert>
-                          <AlertTriangle className="h-4 w-4" />
-                          <AlertTitle>Configure um provedor de vídeo</AlertTitle>
-                          <AlertDescription>
-                            Para gerar vídeos, configure HeyGen ou Runway na aba "APIs".
-                          </AlertDescription>
-                        </Alert>
-                      )}
                     </div>
+                    
+                    {!VideoProviderFactory.hasAnyVideoProviderConfigured() && (
+                      <Alert className="mt-3">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertTitle>Provedor de vídeo não configurado</AlertTitle>
+                        <AlertDescription>
+                          Será gerada apenas a imagem. Para incluir vídeo, configure HeyGen ou Runway na aba "APIs".
+                        </AlertDescription>
+                      </Alert>
+                     )}
                   </div>
                 )}
               </CardContent>
