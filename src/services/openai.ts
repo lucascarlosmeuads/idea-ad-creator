@@ -289,14 +289,14 @@ IMPORTANTE:
       const textInstruction = this.getTextPositionInstruction(params.textPosition || "center");
       
       if (params.mainText && params.subText) {
-        prompt += `. Include text elements: "${params.mainText}" as the main heading in large, bold letters ${textInstruction}, and "${params.subText}" as smaller descriptive text below it. Make sure the text is clearly readable and professionally styled.`;
+        prompt += `. Render the EXACT following texts inside the image (embedded in the scene, not as a UI overlay): Main heading: "${params.mainText}" ${textInstruction}, in large, bold, high-contrast typography; Subtext/CTA: "${params.subText}" positioned directly below the heading. The texts must be verbatim (do not translate, paraphrase, or alter characters, casing, or punctuation). Do not add quotation marks. Ensure perfect legibility and professional typography.`;
       } else if (params.mainText) {
-        prompt += `. Include the text "${params.mainText}" prominently displayed ${textInstruction} in large, bold, readable letters that complement the overall design.`;
+        prompt += `. Render the EXACT text "${params.mainText}" ${textInstruction}, embedded within the image, large, bold, high-contrast, and perfectly legible. Do not translate, paraphrase, or alter characters; do not add quotes.`;
       } else if (params.subText) {
-        prompt += `. Include the text "${params.subText}" ${textInstruction} in clear, readable letters.`;
+        prompt += `. Render the EXACT text "${params.subText}" ${textInstruction}, embedded within the image, clear and high-contrast. Do not translate, paraphrase, or alter characters; do not add quotes.`;
       }
 
-      prompt += ` The text should be perfectly integrated into the design, not overlaid. Use professional typography that matches the overall aesthetic. Text must be in Portuguese and clearly legible.`;
+      prompt += ` Use professional, modern typography that fits the design. The text must be in Portuguese (pt-BR), integrated into the composition (not floating or watermarked), and not cropped or obscured. Avoid placeholder or dummy text.`;
     }
 
     return prompt;
@@ -314,7 +314,7 @@ IMPORTANTE:
         return "on the right side of the image";
       case "center":
       default:
-        return "in the center of the image";
+        return "centered both vertically and horizontally";
     }
   }
 }

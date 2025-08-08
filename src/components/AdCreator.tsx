@@ -273,8 +273,14 @@ export default function AdCreator() {
           // Generate image with OpenAI DALL-E 3
           console.log(`[DEBUG] Gerando imagem ${i + 1} com OpenAI DALL-E 3...`);
           
-          const imageParams: UnifiedImageParams = {
-            prompt: imageDesc
+          const baseImageParams: UnifiedImageParams = {
+            prompt: imageDesc,
+            size: "1024x1024",
+            quality: "hd",
+            style: "vivid",
+            textPosition: "center",
+            mainText: topPhrase,
+            subText: bottomCTA,
           };
           
           let imageResult;
@@ -283,7 +289,14 @@ export default function AdCreator() {
           
           while (retryCount <= maxRetries) {
             try {
-              imageResult = await ImageProviderFactory.generateImage(imageParams, 'openai');
+              const attemptParams: UnifiedImageParams = {
+                ...baseImageParams,
+                prompt:
+                  retryCount === 0
+                    ? baseImageParams.prompt
+                    : `${baseImageParams.prompt}. IMPORTANT: Render inside the image (not overlay) the EXACT Brazilian Portuguese texts "${topPhrase}" (main heading, bold, centered) and "${bottomCTA}" (CTA, below). Do NOT paraphrase, translate, or omit characters. Use high-contrast, professional typography for perfect legibility.`,
+              };
+              imageResult = await ImageProviderFactory.generateImage(attemptParams, 'openai');
               console.log(`[DEBUG] Imagem ${i + 1} gerada:`, imageResult);
               break;
             } catch (imageError) {
