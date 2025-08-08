@@ -216,74 +216,21 @@ export default function AdCreator() {
     console.log("[DEBUG] Iniciando geração de múltiplas opções");
     console.log("[DEBUG] Business Analysis:", businessAnalysis);
 
-    // Check API availability
+    // Check OpenAI API availability
     const hasOpenAI = !!apiManager.getApiKey('openai');
-    const hasRunway = !!apiManager.getApiKey('runway');
-    const hasRunware = !!apiManager.getApiKey('runware');
     
-    console.log("[DEBUG] API Keys Status:", { hasOpenAI, hasRunway, hasRunware });
+    console.log("[DEBUG] API Keys Status:", { hasOpenAI });
     
     if (!hasOpenAI) {
       toast.error("⚠️ Configure a API do OpenAI primeiro para gerar anúncios");
       return;
-    }
-    
-    if (!hasRunway && !hasRunware) {
-      toast.error("⚠️ Configure a API do Runway ou Runware primeiro para gerar imagens");
-      return;
-    }
-
-    let useRunware = false;
-    
-    // Test Runway first, fallback to Runware if it fails
-    if (hasRunway) {
-      try {
-        const RunwayService = (await import("@/services/runway")).RunwayService;
-        const runwayService = new RunwayService(apiManager.getApiKey('runway')!);
-        const isRunwayConnected = await runwayService.testConnection();
-        
-        console.log("[DEBUG] Runway connection test:", isRunwayConnected);
-        
-        if (!isRunwayConnected) {
-          console.log("[DEBUG] Runway falhou, tentando Runware...");
-          if (hasRunware) {
-            useRunware = true;
-            toast.info("⚠️ Runway indisponível. Usando Runware como alternativa.");
-          } else {
-            toast.error("⚠️ Runway falhou e Runware não está configurado.");
-            return;
-          }
-        }
-      } catch (error) {
-        console.error("[DEBUG] Erro ao testar Runway:", error);
-        if (hasRunware) {
-          useRunware = true;
-          toast.info("⚠️ Erro no Runway. Usando Runware como alternativa.");
-        } else {
-          toast.error("⚠️ Erro no Runway e Runware não está configurado.");
-          return;
-        }
-      }
-    } else if (hasRunware) {
-      useRunware = true;
-      console.log("[DEBUG] Usando Runware (Runway não configurado)");
     }
 
     setIsGeneratingCompleteAds(true);
     setCompleteAdsProgress(0);
     
     try {
-      const providerName = useRunware ? "Runware" : "Runway";
-      toast.loading(`🎨 Gerando anúncios com ${providerName}...`);
-      
-      // Set the appropriate provider
-      if (useRunware) {
-        apiManager.setImageProvider('runware');
-        apiManager.setVideoProvider('runway'); // Keep video on Runway if available
-      } else {
-        apiManager.setImageProvider('runway');
-        apiManager.setVideoProvider('runway');
-      }
+      toast.loading('🎨 Gerando anúncios com OpenAI DALL-E 3...');
       
       console.log("[DEBUG] Chamando OpenAI para gerar múltiplas opções...");
       
@@ -310,11 +257,11 @@ export default function AdCreator() {
       setCompleteAdsProgress(25);
       
       const completeAds: GeneratedImageData[] = [];
-      const totalCombinations = Math.min(3, adCombinations.topPhrases.length); // Start with just 3 ads
+      const totalCombinations = Math.min(3, adCombinations.topPhrases.length);
       
-      console.log("[DEBUG] Gerando", totalCombinations, "anúncios completos");
+      console.log("[DEBUG] Gerando", totalCombinations, "anúncios completos com DALL-E 3");
       
-      // Generate each complete ad (image only for now)
+      // Generate each complete ad with OpenAI DALL-E 3
       for (let i = 0; i < totalCombinations; i++) {
         const topPhrase = adCombinations.topPhrases[i];
         const imageDesc = adCombinations.imageDescriptions[i % adCombinations.imageDescriptions.length];
@@ -323,8 +270,8 @@ export default function AdCreator() {
         console.log(`[DEBUG] Gerando anúncio ${i + 1}:`, { topPhrase, imageDesc, bottomCTA });
         
         try {
-          // Generate image with retry
-          console.log(`[DEBUG] Gerando imagem ${i + 1} com ${providerName}...`);
+          // Generate image with OpenAI DALL-E 3
+          console.log(`[DEBUG] Gerando imagem ${i + 1} com OpenAI DALL-E 3...`);
           
           const imageParams: UnifiedImageParams = {
             prompt: imageDesc
@@ -333,11 +280,10 @@ export default function AdCreator() {
           let imageResult;
           let retryCount = 0;
           const maxRetries = 2;
-          const provider = useRunware ? 'runware' : 'runway';
           
           while (retryCount <= maxRetries) {
             try {
-              imageResult = await ImageProviderFactory.generateImage(imageParams, provider);
+              imageResult = await ImageProviderFactory.generateImage(imageParams, 'openai');
               console.log(`[DEBUG] Imagem ${i + 1} gerada:`, imageResult);
               break;
             } catch (imageError) {
@@ -362,7 +308,7 @@ export default function AdCreator() {
             imageDescription: imageDesc,
             timestamp: new Date(),
             prompt: imageDesc,
-            isComplete: true // Mark as complete since we're focusing on images first
+            isComplete: true
           };
           
           completeAds.push(adData);
@@ -383,7 +329,7 @@ export default function AdCreator() {
       toast.dismiss();
       
       if (completeAds.length > 0) {
-        toast.success(`🎉 ${completeAds.length} anúncios gerados com sucesso usando ${providerName}!`);
+        toast.success(`🎉 ${completeAds.length} anúncios gerados com sucesso usando OpenAI DALL-E 3!`);
         setShowAnalysis(false);
         
         // Set the last generated ad as active

@@ -2,13 +2,10 @@ import { toast } from 'sonner';
 
 export interface ApiConfig {
   openai?: string;
-  runware?: string;
-  runway?: string;
-  midjourney?: string;
-  replicate?: string;
   claude?: string;
   gemini?: string;
   // Video APIs
+  runway?: string;
   heygen?: string;
   synthesia?: string;
   luma?: string;
@@ -17,13 +14,12 @@ export interface ApiConfig {
   elevenlabs?: string;
 }
 
-export type ImageProvider = 'openai' | 'runware' | 'runway' | 'midjourney' | 'replicate';
+export type ImageProvider = 'openai';
 export type TextProvider = 'openai' | 'claude' | 'gemini';
-export type VideoProvider = 'heygen' | 'synthesia' | 'runway' | 'luma' | 'pika';
+export type VideoProvider = 'runway' | 'heygen' | 'synthesia' | 'luma' | 'pika';
 
 export interface ApiSettings {
   config: ApiConfig;
-  selectedImageProvider: ImageProvider;
   selectedTextProvider: TextProvider;
   selectedVideoProvider: VideoProvider;
 }
@@ -58,9 +54,8 @@ export class ApiConfigManager {
     
     return {
       config: {},
-      selectedImageProvider: 'openai',
       selectedTextProvider: 'openai',
-      selectedVideoProvider: 'heygen'
+      selectedVideoProvider: 'runway'
     };
   }
 
@@ -96,11 +91,6 @@ export class ApiConfigManager {
     toast.success(`Chave API ${provider.toUpperCase()} removida`);
   }
 
-  public setImageProvider(provider: ImageProvider): void {
-    this.settings.selectedImageProvider = provider;
-    this.saveSettings();
-    toast.success(`Provedor de imagem alterado para ${provider.toUpperCase()}`);
-  }
 
   public setTextProvider(provider: TextProvider): void {
     this.settings.selectedTextProvider = provider;
@@ -126,7 +116,7 @@ export class ApiConfigManager {
   }
 
   public getSelectedImageProvider(): ImageProvider {
-    return this.settings.selectedImageProvider;
+    return 'openai';
   }
 
   public getSelectedTextProvider(): TextProvider {
@@ -141,17 +131,11 @@ export class ApiConfigManager {
     switch (provider) {
       case 'openai':
         return apiKey.startsWith('sk-') && apiKey.length > 20;
-      case 'runware':
-        return apiKey.length > 10;
-      case 'runway':
-        return apiKey.length > 10;
-      case 'midjourney':
-        return apiKey.length > 10;
-      case 'replicate':
-        return apiKey.startsWith('r8_') && apiKey.length > 20;
       case 'claude':
         return apiKey.startsWith('sk-') && apiKey.length > 20;
       case 'gemini':
+        return apiKey.length > 10;
+      case 'runway':
         return apiKey.length > 10;
       case 'heygen':
         return apiKey.length > 10;
@@ -183,9 +167,8 @@ export class ApiConfigManager {
   public clearAllSettings(): void {
     this.settings = {
       config: {},
-      selectedImageProvider: 'openai',
       selectedTextProvider: 'openai',
-      selectedVideoProvider: 'heygen'
+      selectedVideoProvider: 'runway'
     };
     this.saveSettings();
     toast.success('Todas as configurações foram limpas');
@@ -198,14 +181,16 @@ export class ApiConfigManager {
   public importSettings(settingsJson: string): boolean {
     try {
       const imported = JSON.parse(settingsJson);
-      if (imported.config && imported.selectedImageProvider) {
+      if (imported.config) {
         // Ensure backward compatibility
         if (!imported.selectedTextProvider) {
           imported.selectedTextProvider = 'openai';
         }
         if (!imported.selectedVideoProvider) {
-          imported.selectedVideoProvider = 'heygen';
+          imported.selectedVideoProvider = 'runway';
         }
+        // Remove old image provider settings
+        delete imported.selectedImageProvider;
         this.settings = imported;
         this.saveSettings();
         toast.success('Configurações importadas com sucesso');

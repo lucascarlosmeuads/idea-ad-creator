@@ -1,6 +1,4 @@
 import { OpenAIService, type GenerateImageParams as OpenAIParams, type GeneratedImage as OpenAIImage } from './openai';
-import { RunwareService, type GenerateImageParams as RunwareParams, type GeneratedImage as RunwareImage } from './runware';
-import { RunwayService, type RunwayGenerateImageParams, type RunwayGeneratedImage } from './runway';
 import { ApiConfigManager, type ImageProvider } from './apiConfig';
 import { toast } from 'sonner';
 
@@ -77,132 +75,17 @@ class OpenAIProvider implements ImageProviderInterface {
   }
 }
 
-// Runware Provider Implementation
-class RunwareProvider implements ImageProviderInterface {
-  private apiConfigManager = ApiConfigManager.getInstance();
-
-  private getService(): RunwareService {
-    const apiKey = this.apiConfigManager.getApiKey('runware');
-    if (!apiKey) {
-      throw new Error('Chave API Runware não configurada. Configure nas configurações.');
-    }
-    // Always create a new instance to ensure latest API key
-    return new RunwareService(apiKey);
-  }
-
-  async generateImage(params: UnifiedImageParams): Promise<UnifiedImageResult> {
-    const service = this.getService();
-    
-    const runwareParams: RunwareParams = {
-      positivePrompt: params.prompt,
-      model: "runware:100@1",
-      numberResults: 1,
-      outputFormat: "WEBP",
-      CFGScale: params.guidance || 7,
-      seed: params.seed || undefined
-    };
-    
-    const result = await service.generateImage(runwareParams);
-    
-    return {
-      url: result.imageURL,
-      prompt: result.positivePrompt,
-      seed: result.seed,
-      provider: 'runware'
-    };
-  }
-
-  isConfigured(): boolean {
-    return this.apiConfigManager.hasApiKey('runware');
-  }
-
-  getProviderName(): string {
-    return 'Runware AI';
-  }
-}
-
-// Runway Provider Implementation
-class RunwayProvider implements ImageProviderInterface {
-  private apiConfigManager = ApiConfigManager.getInstance();
-
-  private getService(): RunwayService {
-    const apiKey = this.apiConfigManager.getApiKey('runway');
-    if (!apiKey) {
-      throw new Error('Chave API Runway não configurada. Configure nas configurações.');
-    }
-    // Always create a new instance to ensure latest API key
-    return new RunwayService(apiKey);
-  }
-
-  async generateImage(params: UnifiedImageParams): Promise<UnifiedImageResult> {
-    const service = this.getService();
-    
-    const runwayParams: RunwayGenerateImageParams = {
-      prompt: params.prompt,
-      seed: params.seed
-    };
-    
-    const result = await service.generateImage(runwayParams);
-    
-    return {
-      url: result.url,
-      prompt: result.prompt,
-      seed: result.seed,
-      provider: 'runway'
-    };
-  }
-
-  isConfigured(): boolean {
-    return this.apiConfigManager.hasApiKey('runway');
-  }
-
-  getProviderName(): string {
-    return 'Runway ML Gen-4';
-  }
-}
-
-class MidjourneyProvider implements ImageProviderInterface {
-  async generateImage(params: UnifiedImageParams): Promise<UnifiedImageResult> {
-    throw new Error('Midjourney provider não implementado ainda');
-  }
-
-  isConfigured(): boolean {
-    return false;
-  }
-
-  getProviderName(): string {
-    return 'Midjourney (Em breve)';
-  }
-}
-
-class ReplicateProvider implements ImageProviderInterface {
-  async generateImage(params: UnifiedImageParams): Promise<UnifiedImageResult> {
-    throw new Error('Replicate provider não implementado ainda');
-  }
-
-  isConfigured(): boolean {
-    return false;
-  }
-
-  getProviderName(): string {
-    return 'Replicate (Em breve)';
-  }
-}
 
 // Factory Implementation
 export class ImageProviderFactory {
   private static providers: Record<ImageProvider, ImageProviderInterface> = {
-    openai: new OpenAIProvider(),
-    runware: new RunwareProvider(),
-    runway: new RunwayProvider(),
-    midjourney: new MidjourneyProvider(),
-    replicate: new ReplicateProvider()
+    openai: new OpenAIProvider()
   };
 
   private static apiConfigManager = ApiConfigManager.getInstance();
 
   public static getProvider(providerType?: ImageProvider): ImageProviderInterface {
-    const selectedProvider = providerType || this.apiConfigManager.getSelectedImageProvider();
+    const selectedProvider = 'openai'; // Always use OpenAI
     const provider = this.providers[selectedProvider];
     
     if (!provider) {
@@ -255,7 +138,7 @@ export class ImageProviderFactory {
       id: key as ImageProvider,
       name: provider.getProviderName(),
       configured: provider.isConfigured(),
-      comingSoon: ['midjourney', 'replicate'].includes(key)
+      comingSoon: false
     }));
   }
 

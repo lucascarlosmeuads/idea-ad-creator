@@ -15,116 +15,82 @@ interface SimpleApiConfigProps {
 
 export default function SimpleApiConfig({ onConfigChange }: SimpleApiConfigProps) {
   const [openaiKey, setOpenaiKey] = useState('');
-  const [runwayKey, setRunwayKey] = useState('');
   const [showOpenaiKey, setShowOpenaiKey] = useState(false);
-  const [showRunwayKey, setShowRunwayKey] = useState(false);
-  const [isConfigured, setIsConfigured] = useState({ openai: false, runway: false });
+  const [isConfigured, setIsConfigured] = useState(false);
 
   const apiManager = ApiConfigManager.getInstance();
 
   useEffect(() => {
     const settings = apiManager.getSettings();
     setOpenaiKey(settings.config.openai || '');
-    setRunwayKey(settings.config.runway || '');
-    setIsConfigured({
-      openai: !!settings.config.openai,
-      runway: !!settings.config.runway
-    });
+    setIsConfigured(!!settings.config.openai);
 
     const unsubscribe = apiManager.subscribe((newSettings) => {
       setOpenaiKey(newSettings.config.openai || '');
-      setRunwayKey(newSettings.config.runway || '');
-      setIsConfigured({
-        openai: !!newSettings.config.openai,
-        runway: !!newSettings.config.runway
-      });
+      setIsConfigured(!!newSettings.config.openai);
       onConfigChange?.();
     });
 
     return unsubscribe;
   }, [onConfigChange]);
 
-  const saveApiKey = (provider: 'openai' | 'runway', key: string) => {
+  const saveApiKey = (key: string) => {
     if (!key?.trim()) {
       toast.error('Chave API não pode estar vazia');
       return;
     }
 
-    if (!apiManager.validateApiKey(provider, key)) {
+    if (!apiManager.validateApiKey('openai', key)) {
       toast.error('Formato de chave API inválido');
       return;
     }
 
-    apiManager.updateApiKey(provider, key);
+    apiManager.updateApiKey('openai', key);
     
-    // Set providers automatically
-    if (provider === 'openai') {
-      apiManager.setTextProvider('openai');
-      apiManager.setImageProvider('runway'); // Use Runway for images when OpenAI is configured
-    }
-    if (provider === 'runway') {
-      apiManager.setImageProvider('runway');
-      apiManager.setVideoProvider('runway');
-    }
+    // Set OpenAI as text provider automatically
+    apiManager.setTextProvider('openai');
 
-    toast.success(`${provider.toUpperCase()} configurado com sucesso!`);
+    toast.success('OpenAI configurado com sucesso!');
   };
 
-  const testConnection = async (provider: 'openai' | 'runway') => {
+  const testConnection = async () => {
     try {
-      toast.loading(`Testando conexão ${provider.toUpperCase()}...`);
+      toast.loading('Testando conexão OpenAI...');
       
-      if (provider === 'openai') {
-        const response = await fetch('https://api.openai.com/v1/models', {
-          headers: {
-            'Authorization': `Bearer ${apiManager.getApiKey('openai')}`
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`API retornou ${response.status}`);
+      const response = await fetch('https://api.openai.com/v1/models', {
+        headers: {
+          'Authorization': `Bearer ${apiManager.getApiKey('openai')}`
         }
-      } else if (provider === 'runway') {
-        const response = await fetch('https://api.runwayml.com/v1/users/me', {
-          headers: {
-            'Authorization': `Bearer ${apiManager.getApiKey('runway')}`
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`API retornou ${response.status}`);
-        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API retornou ${response.status}`);
       }
       
       toast.dismiss();
-      toast.success(`${provider.toUpperCase()} conectado com sucesso!`);
+      toast.success('OpenAI conectado com sucesso!');
     } catch (error) {
       toast.dismiss();
-      console.error(`Erro ao testar ${provider}:`, error);
-      toast.error(`Erro na conexão ${provider.toUpperCase()}: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      console.error('Erro ao testar OpenAI:', error);
+      toast.error(`Erro na conexão OpenAI: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
   };
-
-  const isFullyConfigured = isConfigured.openai && isConfigured.runway;
-  const missingConfigs = [];
-  if (!isConfigured.openai) missingConfigs.push('OpenAI');
-  if (!isConfigured.runway) missingConfigs.push('Runway');
 
   return (
     <Card className="bg-gradient-card border-border shadow-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Settings className="h-5 w-5" />
-          ⚙️ Configuração das APIs
+          ⚙️ Configuração da API
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Status Summary */}
         <div className="p-4 rounded-lg border border-border/50 bg-secondary/20">
-          {isFullyConfigured ? (
+          {isConfigured ? (
             <div className="flex items-center gap-2 text-green-600">
               <Check className="h-5 w-5" />
-              <span className="font-semibold">✅ Tudo configurado! Pronto para gerar anúncios.</span>
+              <span className="font-semibold">✅ OpenAI configurado! Pronto para gerar anúncios.</span>
             </div>
           ) : (
             <div className="space-y-2">
@@ -133,7 +99,7 @@ export default function SimpleApiConfig({ onConfigChange }: SimpleApiConfigProps
                 <span className="font-semibold">⚠️ Configuração incompleta</span>
               </div>
               <p className="text-sm text-muted-foreground">
-                Para gerar múltiplas opções, você precisa configurar: <strong>{missingConfigs.join(', ')}</strong>
+                Configure sua chave da API <strong>OpenAI</strong> para gerar anúncios com DALL-E 3.
               </p>
             </div>
           )}
@@ -144,11 +110,11 @@ export default function SimpleApiConfig({ onConfigChange }: SimpleApiConfigProps
           <div className="flex items-center justify-between">
             <div>
               <Label className="text-base font-semibold flex items-center gap-2">
-                OpenAI
-                {isConfigured.openai && <Badge variant="secondary">✅ Configurado</Badge>}
+                OpenAI DALL-E 3
+                {isConfigured && <Badge variant="secondary">✅ Configurado</Badge>}
               </Label>
               <p className="text-sm text-muted-foreground">
-                Para análise de documentos e geração de copy inteligente
+                Para análise de documentos e geração de imagens com DALL-E 3
               </p>
             </div>
             <Button
@@ -180,17 +146,17 @@ export default function SimpleApiConfig({ onConfigChange }: SimpleApiConfigProps
               </Button>
             </div>
             <Button
-              onClick={() => saveApiKey('openai', openaiKey)}
+              onClick={() => saveApiKey(openaiKey)}
               disabled={!openaiKey.trim()}
               size="sm"
             >
               Salvar
             </Button>
-            {isConfigured.openai && (
+            {isConfigured && (
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => testConnection('openai')}
+                onClick={testConnection}
               >
                 <TestTube2 className="h-3 w-3 mr-1" />
                 Testar
@@ -199,73 +165,22 @@ export default function SimpleApiConfig({ onConfigChange }: SimpleApiConfigProps
           </div>
         </div>
 
-        {/* Runway Configuration */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <Label className="text-base font-semibold flex items-center gap-2">
-                Runway ML
-                {isConfigured.runway && <Badge variant="secondary">✅ Configurado</Badge>}
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                Para geração de imagens e vídeos animados de alta qualidade
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.open('https://runwayml.com', '_blank')}
-            >
-              <ExternalLink className="h-3 w-3 mr-1" />
-              Obter chave
-            </Button>
-          </div>
-
-          <div className="flex gap-2">
-            <div className="flex-1 relative">
-              <Input
-                type={showRunwayKey ? 'text' : 'password'}
-                placeholder="rw_..."
-                value={runwayKey}
-                onChange={(e) => setRunwayKey(e.target.value)}
-                className="bg-background/50 border-border pr-10"
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-2"
-                onClick={() => setShowRunwayKey(!showRunwayKey)}
-              >
-                {showRunwayKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-              </Button>
-            </div>
-            <Button
-              onClick={() => saveApiKey('runway', runwayKey)}
-              disabled={!runwayKey.trim()}
-              size="sm"
-            >
-              Salvar
-            </Button>
-            {isConfigured.runway && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => testConnection('runway')}
-              >
-                <TestTube2 className="h-3 w-3 mr-1" />
-                Testar
-              </Button>
-            )}
-          </div>
+        {/* Information about image generation */}
+        <div className="p-4 rounded-lg border border-primary/20 bg-primary/5">
+          <h4 className="font-semibold text-foreground mb-2">🎨 Geração de Imagens</h4>
+          <p className="text-sm text-muted-foreground">
+            Agora usamos exclusivamente o <strong>OpenAI DALL-E 3</strong> para geração de imagens de alta qualidade. 
+            Configure sua chave API acima para começar a criar anúncios visuais impressionantes.
+          </p>
         </div>
 
         {/* Warning for incomplete configuration */}
-        {!isFullyConfigured && (
+        {!isConfigured && (
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              <strong>Importante:</strong> Configure ambas as APIs para usar todas as funcionalidades. 
-              Sem essas configurações, você não poderá gerar anúncios completos com imagem e vídeo.
+              <strong>Importante:</strong> Configure a API OpenAI para usar todas as funcionalidades. 
+              Sem essa configuração, você não poderá gerar anúncios com imagens.
             </AlertDescription>
           </Alert>
         )}
