@@ -21,6 +21,7 @@ import AudioRecorderPanel from "./AudioRecorderPanel";
 import VideoCreator from "./VideoCreator";
 import ImageAnimationDialog from "./ImageAnimationDialog";
 import PromptAssistant from "./PromptAssistant";
+import PromptReviewDialog from "./PromptReviewDialog";
 
 interface GeneratedImageData {
   id: string;
@@ -48,6 +49,13 @@ interface GeneratedContentData {
   image?: GeneratedImageData;
   video?: GeneratedVideoData;
   timestamp: Date;
+}
+
+interface PromptDraft {
+  id: string;
+  headline: string;
+  description: string;
+  cta: string;
 }
 
 interface ImageGalleryProps {
@@ -185,8 +193,11 @@ export default function AdCreator() {
   // Input mode state (text vs audio)
   const [inputMode, setInputMode] = useState<'text' | 'audio'>('text');
   
-  // Prompt Assistant controls
+// Prompt Assistant controls
   const [reinforceText, setReinforceText] = useState<boolean>(false);
+  // Prompt Review Dialog state
+  const [showPromptDialog, setShowPromptDialog] = useState(false);
+  const [promptDrafts, setPromptDrafts] = useState<PromptDraft[]>([]);
   
   // API configuration
   const apiManager = ApiConfigManager.getInstance();
@@ -211,158 +222,132 @@ export default function AdCreator() {
     }
   };
 
+const generateImagesFromDrafts = async (drafts: PromptDraft[]) => {
+    // Start generating images from approved/edited drafts
+    if (drafts.length === 0) return;
+
+    setIsGeneratingCompleteAds(true);
+    setCompleteAdsProgress(0);
+    setShowPromptDialog(false);
+
+    const total = drafts.length;
+    const completeAds: GeneratedImageData[] = [];
+
+    try {
+      for (let i = 0; i < drafts.length; i++) {
+        const { headline: topPhrase, description: imageDesc, cta: bottomCTA } = drafts[i];
+
+        const baseImageParams: UnifiedImageParams = {
+          prompt: imageDesc,
+          size: "1024x1024",
+          quality: "hd",
+          style: "vivid",
+          textPosition: "center",
+          mainText: topPhrase,
+          subText: bottomCTA,
+        };
+
+        let imageResult;
+        let retryCount = 0;
+        const maxRetries = 2;
+
+        while (retryCount <= maxRetries) {
+          try {
+            const booster = ` IMPORTANT: Render inside the image (not overlay) the EXACT Brazilian Portuguese texts "${topPhrase}" (main heading, bold, centered) and "${bottomCTA}" (CTA, below). Do NOT paraphrase, translate, or omit characters. Use high-contrast, professional typography for perfect legibility.`;
+            const shouldBoost = reinforceText || retryCount > 0;
+            const attemptParams: UnifiedImageParams = {
+              ...baseImageParams,
+              prompt: shouldBoost ? `${baseImageParams.prompt}.${booster}` : baseImageParams.prompt,
+            };
+            imageResult = await ImageProviderFactory.generateImage(attemptParams, 'openai');
+            break;
+          } catch (imageError) {
+            retryCount++;
+            if (retryCount > maxRetries) throw imageError;
+            await new Promise(r => setTimeout(r, 1500));
+          }
+        }
+
+        if (!imageResult) throw new Error("Falha ao gerar imagem após múltiplas tentativas");
+
+        const adData: GeneratedImageData = {
+          id: crypto.randomUUID(),
+          url: imageResult.url,
+          topPhrase,
+          bottomCTA,
+          imageDescription: imageDesc,
+          timestamp: new Date(),
+          prompt: imageDesc,
+          isComplete: true
+        };
+
+        completeAds.push(adData);
+        setGeneratedImages(prev => [...prev, adData]);
+        setCompleteAdsProgress(((i + 1) / total) * 100);
+      }
+
+      if (completeAds.length > 0) {
+        toast.success(`🎉 ${completeAds.length} anúncios gerados com sucesso!`);
+        setActiveImageId(completeAds[completeAds.length - 1].id);
+        setShowAnalysis(false);
+      } else {
+        toast.error("Nenhum anúncio foi gerado com sucesso.");
+      }
+    } catch (error) {
+      console.error('[DEBUG] Erro geral na geração a partir dos rascunhos:', error);
+      toast.error(error instanceof Error ? error.message : 'Erro desconhecido na geração');
+    } finally {
+      setIsGeneratingCompleteAds(false);
+      setCompleteAdsProgress(0);
+    }
+  };
+
   const generateMultipleOptions = async () => {
     if (!businessAnalysis) {
       toast.error("Analise um documento primeiro para gerar múltiplas opções");
       return;
     }
 
-    console.log("[DEBUG] Iniciando geração de múltiplas opções");
-    console.log("[DEBUG] Business Analysis:", businessAnalysis);
-
     // Check OpenAI API availability
     const hasOpenAI = !!apiManager.getApiKey('openai');
-    
-    console.log("[DEBUG] API Keys Status:", { hasOpenAI });
-    
     if (!hasOpenAI) {
       toast.error("⚠️ Configure a API do OpenAI primeiro para gerar anúncios");
       return;
     }
 
-    setIsGeneratingCompleteAds(true);
+    setIsGeneratingCompleteAds(false);
     setCompleteAdsProgress(0);
-    
+
     try {
-      toast.loading('🎨 Gerando anúncios com OpenAI DALL-E 3...');
-      
-      console.log("[DEBUG] Chamando OpenAI para gerar múltiplas opções...");
-      
-      // Generate ad combinations with retry
+      toast.loading('🧠 Gerando rascunhos de prompts...');
       const openaiService = new OpenAIService(apiManager.getApiKey('openai')!);
-      let adCombinations;
-      
-      try {
-        adCombinations = await openaiService.generateMultipleAdOptions(businessAnalysis);
-        console.log("[DEBUG] OpenAI resposta:", adCombinations);
-      } catch (openaiError) {
-        console.error("[DEBUG] Erro OpenAI:", openaiError);
-        toast.error("Erro ao gerar conteúdo com OpenAI. Verifique sua chave API.");
+      const adCombinations = await openaiService.generateMultipleAdOptions(businessAnalysis);
+
+      if (!adCombinations || !adCombinations.topPhrases?.length) {
+        toast.dismiss();
+        toast.error('Resposta inválida do OpenAI para rascunhos');
         return;
       }
-      
-      // Validate OpenAI response
-      if (!adCombinations || !adCombinations.topPhrases || adCombinations.topPhrases.length === 0) {
-        console.error("[DEBUG] Resposta OpenAI inválida:", adCombinations);
-        toast.error("Resposta inválida do OpenAI. Tente novamente.");
-        return;
-      }
-      
-      setCompleteAdsProgress(25);
-      
-      const completeAds: GeneratedImageData[] = [];
+
       const totalCombinations = Math.min(3, adCombinations.topPhrases.length);
-      
-      console.log("[DEBUG] Gerando", totalCombinations, "anúncios completos com DALL-E 3");
-      
-      // Generate each complete ad with OpenAI DALL-E 3
+      const drafts: PromptDraft[] = [];
       for (let i = 0; i < totalCombinations; i++) {
-        const topPhrase = adCombinations.topPhrases[i];
-        const imageDesc = adCombinations.imageDescriptions[i % adCombinations.imageDescriptions.length];
-        const bottomCTA = adCombinations.bottomCTAs[i % adCombinations.bottomCTAs.length];
-        
-        console.log(`[DEBUG] Gerando anúncio ${i + 1}:`, { topPhrase, imageDesc, bottomCTA });
-        
-        try {
-          // Generate image with OpenAI DALL-E 3
-          console.log(`[DEBUG] Gerando imagem ${i + 1} com OpenAI DALL-E 3...`);
-          
-          const baseImageParams: UnifiedImageParams = {
-            prompt: imageDesc,
-            size: "1024x1024",
-            quality: "hd",
-            style: "vivid",
-            textPosition: "center",
-            mainText: topPhrase,
-            subText: bottomCTA,
-          };
-          
-          let imageResult;
-          let retryCount = 0;
-          const maxRetries = 2;
-          
-          while (retryCount <= maxRetries) {
-            try {
-              const booster = ` IMPORTANT: Render inside the image (not overlay) the EXACT Brazilian Portuguese texts "${topPhrase}" (main heading, bold, centered) and "${bottomCTA}" (CTA, below). Do NOT paraphrase, translate, or omit characters. Use high-contrast, professional typography for perfect legibility.`;
-              const shouldBoost = reinforceText || retryCount > 0;
-              const attemptParams: UnifiedImageParams = {
-                ...baseImageParams,
-                prompt: shouldBoost ? `${baseImageParams.prompt}.${booster}` : baseImageParams.prompt,
-              };
-              imageResult = await ImageProviderFactory.generateImage(attemptParams, 'openai');
-              console.log(`[DEBUG] Imagem ${i + 1} gerada:`, imageResult);
-              break;
-            } catch (imageError) {
-              console.error(`[DEBUG] Erro na tentativa ${retryCount + 1} da imagem ${i + 1}:`, imageError);
-              retryCount++;
-              if (retryCount > maxRetries) {
-                throw imageError;
-              }
-              await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
-            }
-          }
-          
-          if (!imageResult) {
-            throw new Error("Falha ao gerar imagem após múltiplas tentativas");
-          }
-          
-          const adData: GeneratedImageData = {
-            id: crypto.randomUUID(),
-            url: imageResult.url,
-            topPhrase,
-            bottomCTA,
-            imageDescription: imageDesc,
-            timestamp: new Date(),
-            prompt: imageDesc,
-            isComplete: true
-          };
-          
-          completeAds.push(adData);
-          setGeneratedImages(prev => [...prev, adData]);
-          
-          console.log(`[DEBUG] Anúncio ${i + 1} salvo:`, adData);
-          
-          // Update progress
-          setCompleteAdsProgress((i + 1) / totalCombinations * 100);
-          
-        } catch (error) {
-          console.error(`[DEBUG] Erro crítico ao gerar anúncio ${i + 1}:`, error);
-          toast.error(`Erro ao gerar anúncio ${i + 1}: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-          // Continue with next ad instead of failing completely
-        }
+        drafts.push({
+          id: crypto.randomUUID(),
+          headline: adCombinations.topPhrases[i],
+          description: adCombinations.imageDescriptions[i % adCombinations.imageDescriptions.length],
+          cta: adCombinations.bottomCTAs[i % adCombinations.bottomCTAs.length],
+        });
       }
-      
+
+      setPromptDrafts(drafts);
+      setShowPromptDialog(true);
       toast.dismiss();
-      
-      if (completeAds.length > 0) {
-        toast.success(`🎉 ${completeAds.length} anúncios gerados com sucesso usando OpenAI DALL-E 3!`);
-        setShowAnalysis(false);
-        
-        // Set the last generated ad as active
-        setActiveImageId(completeAds[completeAds.length - 1].id);
-      } else {
-        toast.error("Nenhum anúncio foi gerado com sucesso. Verifique suas configurações de API.");
-      }
-      
-      console.log(`[DEBUG] Processo finalizado. ${completeAds.length} anúncios gerados`);
-      
+      toast.success('Rascunhos prontos! Revise e clique em Gerar Imagens.');
     } catch (error) {
-      console.error("[DEBUG] Erro geral na geração:", error);
+      console.error('[DEBUG] Erro ao gerar rascunhos:', error);
       toast.dismiss();
-      toast.error(`Erro geral: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-    } finally {
-      setIsGeneratingCompleteAds(false);
-      setCompleteAdsProgress(0);
+      toast.error(error instanceof Error ? error.message : 'Erro desconhecido ao gerar rascunhos');
     }
   };
 
@@ -708,7 +693,7 @@ export default function AdCreator() {
             onAnimateImage={handleAnimateImage}
           />
 
-          {/* Image Animation Dialog */}
+{/* Image Animation Dialog */}
           <ImageAnimationDialog
             isOpen={showAnimationDialog}
             onClose={() => setShowAnimationDialog(false)}
@@ -716,8 +701,19 @@ export default function AdCreator() {
             onAnimate={animateImage}
             isAnimating={isAnimatingImage}
           />
+
+          {/* Prompt Review Dialog */}
+          <PromptReviewDialog
+            open={showPromptDialog}
+            drafts={promptDrafts}
+            onClose={() => setShowPromptDialog(false)}
+            onConfirm={(updated) => generateImagesFromDrafts(updated)}
+            reinforce={reinforceText}
+            onToggleReinforce={setReinforceText}
+          />
         </div>
       </div>
     </div>
   );
 }
+
