@@ -1,7 +1,7 @@
-import AdCreator from "@/components/AdCreator";
+import SimpleImageGenerator from "@/components/SimpleImageGenerator";
 
 const Index = () => {
-  return <AdCreator />;
+  return <SimpleImageGenerator />;
 };
 
 export default Index;
