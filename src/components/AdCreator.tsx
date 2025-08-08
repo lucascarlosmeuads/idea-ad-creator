@@ -20,6 +20,7 @@ import SimpleApiConfig from "./SimpleApiConfig";
 import AudioRecorderPanel from "./AudioRecorderPanel";
 import VideoCreator from "./VideoCreator";
 import ImageAnimationDialog from "./ImageAnimationDialog";
+import PromptAssistant from "./PromptAssistant";
 
 interface GeneratedImageData {
   id: string;
@@ -184,6 +185,9 @@ export default function AdCreator() {
   // Input mode state (text vs audio)
   const [inputMode, setInputMode] = useState<'text' | 'audio'>('text');
   
+  // Prompt Assistant controls
+  const [reinforceText, setReinforceText] = useState<boolean>(false);
+  
   // API configuration
   const apiManager = ApiConfigManager.getInstance();
 
@@ -289,12 +293,11 @@ export default function AdCreator() {
           
           while (retryCount <= maxRetries) {
             try {
+              const booster = ` IMPORTANT: Render inside the image (not overlay) the EXACT Brazilian Portuguese texts "${topPhrase}" (main heading, bold, centered) and "${bottomCTA}" (CTA, below). Do NOT paraphrase, translate, or omit characters. Use high-contrast, professional typography for perfect legibility.`;
+              const shouldBoost = reinforceText || retryCount > 0;
               const attemptParams: UnifiedImageParams = {
                 ...baseImageParams,
-                prompt:
-                  retryCount === 0
-                    ? baseImageParams.prompt
-                    : `${baseImageParams.prompt}. IMPORTANT: Render inside the image (not overlay) the EXACT Brazilian Portuguese texts "${topPhrase}" (main heading, bold, centered) and "${bottomCTA}" (CTA, below). Do NOT paraphrase, translate, or omit characters. Use high-contrast, professional typography for perfect legibility.`,
+                prompt: shouldBoost ? `${baseImageParams.prompt}.${booster}` : baseImageParams.prompt,
               };
               imageResult = await ImageProviderFactory.generateImage(attemptParams, 'openai');
               console.log(`[DEBUG] Imagem ${i + 1} gerada:`, imageResult);
@@ -667,6 +670,9 @@ export default function AdCreator() {
               </CardContent>
             </Card>
           )}
+
+          {/* Prompt Assistant */}
+          <PromptAssistant reinforce={reinforceText} onToggleReinforce={setReinforceText} />
 
           {/* Generated Prompt Preview */}
           {generatedPrompt && (
